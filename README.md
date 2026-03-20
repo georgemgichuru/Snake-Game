@@ -14,9 +14,51 @@ A classic Snake game written in C++ from scratch using modern OpenGL (version 3.
 
 To better understand how the decoupled engine layers interact with the specific Game Logic, here is an overview of the system architecture:
 
-![Class Diagram](classdiagram.png "Class Diagram")
+```mermaid
+classDiagram
+    class GameState {
+        -Renderer* m_renderer
+        -InputManager* m_input
+        -Snake m_snake
+        -vec2 m_foodPosition
+        -bool m_isGameOver
+        +update()
+        +render()
+    }
+    
+    class Snake {
+        -deque~Position~ m_segments
+        -Direction m_direction
+        +init()
+        +move()
+        +grow()
+        +checkCollision(pos)
+    }
 
-> *Note: Make sure `classdiagram.png` is placed in the root directory for the image to display above.*
+    class Renderer {
+        -shared_ptr~Shader~ m_shader
+        -GLuint m_vao
+        -GLuint m_vbo
+        +drawQuad()
+    }
+
+    class InputManager {
+        -unordered_map~int, bool~ m_keys
+        +isKeyPressed()
+        +update()
+    }
+    
+    class ResourceManager {
+        -unordered_map~string, Shader~ m_shaders
+        +loadShader()
+        +getShader()
+    }
+
+    GameState --> Renderer : Uses
+    GameState --> InputManager : Uses
+    GameState *-- Snake : Owns
+    Renderer --> ResourceManager : Uses Shader
+```
 
 ---
 
