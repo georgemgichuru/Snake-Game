@@ -3,8 +3,10 @@
 #include <deque>
 #include <glm/glm.hpp>
 
+// Easy-to-read name alias for 2D vectors
 using Position = glm::vec2;
 
+// The four allowed facings for the snake.
 enum class Direction {
     UP,
     DOWN,
@@ -13,38 +15,42 @@ enum class Direction {
 };
 
 /**
- * Snake - Manages snake logic and movement
+ * Snake Class:
+ * Manages the data and logical grid movement representing the Snake player.
+ * Uses a std::deque (Double Ended Queue) because a snake naturally works by:
+ * 1) Popping the tail element constantly (back)
+ * 2) Pushing a new head element constantly (front)
  */
 class Snake {
 private:
-    std::deque<Position> m_segments;
-    Direction m_direction;
-    Direction m_nextDirection;
-    bool m_growPending;
+    std::deque<Position> m_segments; // Array of grid coordinates making up the body
+    Direction m_direction;           // The direction we are CURRENTLY moving this exact tile
+    Direction m_nextDirection;       // The direction Cued Up for next tile (prevents button-mashing errors)
+    bool m_growPending;              // If true, next time we move we DON'T remove the tail (effectively growing +1 unit)
     
 public:
     Snake();
     ~Snake() = default;
     
-    // Initialize snake at starting position
+    // Spawn the snake logically on the grid
     void init(const Position& startPos, int initialLength);
     
-    // Set direction (with validation)
+    // Asks the snake to turn. Validates logic (No immediate U-turns into your own neck)
     void setDirection(Direction dir);
     
-    // Move snake based on current direction
+    // Advances the deque one grid unit forward in whichever direction it's facing
     void move();
     
-    // Schedule growth for next move
+    // "Eats food". Signals that next `move()` should leave the tail alone.
     void grow();
     
-    // Check if snake collides with a given position
+    // Mathematics to check if this grid position perfectly matches ANY snake body part
     bool checkCollision(const Position& pos) const;
     
-    // Check if snake collides with itself
+    // Iterates the body to see if the Head coordinate crashed into another Body coordinate
     bool checkSelfCollision() const;
     
-    // Getters
+    // Read-only getters so external systems (like Renderer) can ask where the snake is
     const std::deque<Position>& getSegments() const { return m_segments; }
     Position getHead() const { return m_segments.front(); }
     Direction getDirection() const { return m_direction; }

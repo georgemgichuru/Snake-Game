@@ -5,7 +5,6 @@ project(SnakeGame VERSION 1.0.0)
 # Project Configuration
 # ============================================================================
 
-# Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -27,45 +26,77 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # Third-party directory
 set(THIRD_PARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
-# GLAD (OpenGL loader)
+# GLAD
 set(GLAD_INCLUDE_DIR ${THIRD_PARTY_DIR}/glad/include)
 set(GLAD_SOURCE ${THIRD_PARTY_DIR}/glad/src/glad.c)
 
-# GLM (header-only math library)
+# GLM (header-only)
 set(GLM_INCLUDE_DIR ${THIRD_PARTY_DIR}/glm)
 
-# GLFW (window and input library)
-set(GLFW_INCLUDE_DIR ${THIRD_PARTY_DIR}/GLFW/include)
-set(GLFW_LIBRARY_DIR ${THIRD_PARTY_DIR}/GLFW/lib)
+# GLFW - Navigate into the versioned folder
+# Since you have GLFW/glfw-3.4.bin.WIN64/
+set(GLFW_BASE_DIR ${THIRD_PARTY_DIR}/GLFW)
+set(GLFW_VERSION_DIR ${GLFW_BASE_DIR}/glfw-3.4.bin.WIN64)
+
+# Check if the versioned directory exists
+if(EXISTS ${GLFW_VERSION_DIR})
+    message(STATUS "Found GLFW at: ${GLFW_VERSION_DIR}")
+    
+    # Set include directory
+    set(GLFW_INCLUDE_DIR ${GLFW_VERSION_DIR}/include)
+    
+    # For Visual Studio 2022, use lib-vc2022
+    set(GLFW_LIBRARY_DIR ${GLFW_VERSION_DIR}/lib-vc2022)
+    
+    # If lib-vc2022 doesn't exist, try other options
+    if(NOT EXISTS ${GLFW_LIBRARY_DIR})
+        if(EXISTS ${GLFW_VERSION_DIR}/lib-vc2019)
+            set(GLFW_LIBRARY_DIR ${GLFW_VERSION_DIR}/lib-vc2019)
+            message(STATUS "Using lib-vc2019 instead")
+        elseif(EXISTS ${GLFW_VERSION_DIR}/lib-vc2017)
+            set(GLFW_LIBRARY_DIR ${GLFW_VERSION_DIR}/lib-vc2017)
+            message(STATUS "Using lib-vc2017 instead")
+        elseif(EXISTS ${GLFW_VERSION_DIR}/lib-static-ucrt)
+            set(GLFW_LIBRARY_DIR ${GLFW_VERSION_DIR}/lib-static-ucrt)
+            message(STATUS "Using lib-static-ucrt instead")
+        else()
+            message(FATAL_ERROR "No GLFW library directory found. Checked: lib-vc2022, lib-vc2019, lib-vc2017, lib-static-ucrt")
+        endif()
+    endif()
+    
+    message(STATUS "GLFW Include: ${GLFW_INCLUDE_DIR}")
+    message(STATUS "GLFW Library: ${GLFW_LIBRARY_DIR}")
+    
+else()
+    message(FATAL_ERROR "Cannot find GLFW at: ${GLFW_VERSION_DIR}")
+endif()
 
 # ============================================================================
-# Platform Detection
+# Platform-Specific GLFW Library
 # ============================================================================
 
 if(WIN32)
     set(PLATFORM_LIBRARIES opengl32)
     
-    # Detect architecture
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(ARCH "x64")
-        set(GLFW_LIB_PATH ${GLFW_LIBRARY_DIR}/glfw3.lib)
-    else()
-        set(ARCH "x86")
-        set(GLFW_LIB_PATH ${GLFW_LIBRARY_DIR}/glfw3.lib)
-    endif()
-    
-    # Check for GLFW DLL
-    if(EXISTS ${GLFW_LIBRARY_DIR}/glfw3.dll)
+    # Check for GLFW library file
+    if(EXISTS ${GLFW_LIBRARY_DIR}/glfw3.lib)
+        set(GLFW_LIBRARY ${GLFW_LIBRARY_DIR}/glfw3.lib)
+        message(STATUS "Using static GLFW library")
+    elseif(EXISTS ${GLFW_LIBRARY_DIR}/glfw3dll.lib)
+        set(GLFW_LIBRARY ${GLFW_LIBRARY_DIR}/glfw3dll.lib)
         set(GLFW_DLL ${GLFW_LIBRARY_DIR}/glfw3.dll)
+        message(STATUS "Using dynamic GLFW library")
+    else()
+        message(FATAL_ERROR "Cannot find GLFW library file in ${GLFW_LIBRARY_DIR}")
     endif()
     
 elseif(APPLE)
     set(PLATFORM_LIBRARIES "-framework OpenGL")
-    set(GLFW_LIB_PATH ${GLFW_LIBRARY_DIR}/libglfw.3.dylib)
+    set(GLFW_LIBRARY ${GLFW_LIBRARY_DIR}/libglfw.3.dylib)
     
 else() # Linux/Unix
     set(PLATFORM_LIBRARIES GL dl pthread)
-    set(GLFW_LIB_PATH ${GLFW_LIBRARY_DIR}/libglfw.so.3)
+    set(GLFW_LIBRARY ${GLFW_LIBRARY_DIR}/libglfw.so.3)
 endif()
 
 # ============================================================================
@@ -83,35 +114,20 @@ include_directories(
 # Source Files
 # ============================================================================
 
-# Core system files
-set(CORE_SOURCES
-    src/Core/InputManager.cpp
-    src/Core/Renderer.cpp
-    src/Core/ResourceManager.cpp
-    src/Core/Time.cpp
-)
-
-# Game objects
-set(GAMEOBJECT_SOURCES
-    src/GameObjects/Snake.cpp
-)
-
-# Game states
-set(GAMESTATE_SOURCES
-    src/GameStates/GameState.cpp
-)
-
-# Main entry point
-set(MAIN_SOURCES
-    src/main.cpp
-)
-
-# Combine all sources
 set(SOURCES
-    ${CORE_SOURCES}
-    ${GAMEOBJECT_SOURCES}
-    ${GAMESTATE_SOURCES}
-    ${MAIN_SOURCES}
+    src/main.cpp
+    src/Core/InputManager.cpp
+    src/Core/InputManager.h
+    src/Core/Renderer.cpp
+    src/Core/Renderer.h
+    src/Core/ResourceManager.cpp
+    src/Core/ResourceManager.h
+    src/Core/Time.cpp
+    src/Core/Time.h
+    src/GameObjects/Snake.cpp
+    src/GameObjects/Snake.h
+    src/GameStates/GameState.cpp
+    src/GameStates/GameState.h
     ${GLAD_SOURCE}
 )
 
@@ -126,7 +142,7 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 # ============================================================================
 
 target_link_libraries(${PROJECT_NAME}
-    ${GLFW_LIB_PATH}
+    ${GLFW_LIBRARY}
     ${PLATFORM_LIBRARIES}
 )
 
@@ -134,24 +150,31 @@ target_link_libraries(${PROJECT_NAME}
 # Compiler Options
 # ============================================================================
 
-# Enable warnings
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX-)
-    # Disable specific warnings
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4)
+    # Disable some warnings
     target_compile_options(${PROJECT_NAME} PRIVATE /wd4251 /wd4275 /wd4996)
+    # Set Windows subsystem to console for debugging
+    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 # ============================================================================
-# Resource Files
+# Copy Resources
 # ============================================================================
 
-# Copy shaders to build directory
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders 
-     DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+# Copy shaders to output directory
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
+        COMMENT "Copying shaders to output directory"
+    )
+endif()
 
-# Copy GLFW DLL on Windows
+# Copy GLFW DLL on Windows (if using dynamic library)
 if(WIN32 AND GLFW_DLL)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -162,33 +185,12 @@ if(WIN32 AND GLFW_DLL)
 endif()
 
 # ============================================================================
-# Platform-Specific Settings
-# ============================================================================
-
-if(APPLE)
-    # macOS specific settings
-    target_compile_definitions(${PROJECT_NAME} PRIVATE GL_SILENCE_DEPRECATION=1)
-endif()
-
-if(WIN32)
-    # Windows specific settings
-    target_compile_definitions(${PROJECT_NAME} PRIVATE _CRT_SECURE_NO_WARNINGS)
-endif()
-
-# ============================================================================
-# Install Rules (Optional)
-# ============================================================================
-
-install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-install(DIRECTORY shaders/ DESTINATION shaders)
-
-# ============================================================================
 # Custom Targets
 # ============================================================================
 
 # Add a custom target to run the game
 add_custom_target(run
-    COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${PROJECT_NAME}
+    COMMAND ${PROJECT_NAME}
     DEPENDS ${PROJECT_NAME}
     COMMENT "Running ${PROJECT_NAME}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -197,26 +199,27 @@ add_custom_target(run
 # Add a custom target for development
 add_custom_target(dev
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${PROJECT_NAME}
-    COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${PROJECT_NAME}
+    COMMAND ${PROJECT_NAME}
     DEPENDS ${PROJECT_NAME}
     COMMENT "Building and running ${PROJECT_NAME}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
 # ============================================================================
-# Print Configuration Summary
+# Build Configuration Summary
 # ============================================================================
 
 message(STATUS "")
 message(STATUS "========================================")
 message(STATUS "Snake Game Configuration")
 message(STATUS "========================================")
-message(STATUS "Project Version: ${PROJECT_VERSION}")
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Platform: ${CMAKE_SYSTEM_NAME}")
-message(STATUS "Architecture: ${CMAKE_SYSTEM_PROCESSOR}")
-message(STATUS "Third Party Path: ${THIRD_PARTY_DIR}")
+message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "GLFW Include: ${GLFW_INCLUDE_DIR}")
+message(STATUS "GLFW Library: ${GLFW_LIBRARY}")
+message(STATUS "GLM Include: ${GLM_INCLUDE_DIR}")
+message(STATUS "GLAD Include: ${GLAD_INCLUDE_DIR}")
 message(STATUS "Output Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "========================================")
 message(STATUS "")

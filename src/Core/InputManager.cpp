@@ -1,10 +1,11 @@
 #include "Core/InputManager.h"
-#include <iostream>
+#include <cstring>
 
 InputManager* InputManager::s_instance = nullptr;
 
 InputManager::InputManager() 
     : m_window(nullptr) {
+    memset(m_previousKeys, 0, sizeof(m_previousKeys));
 }
 
 InputManager* InputManager::getInstance() {
@@ -15,46 +16,36 @@ InputManager* InputManager::getInstance() {
 }
 
 void InputManager::init(GLFWwindow* window) {
+    // Store a reference to the main window for querying keys later
     m_window = window;
-    
-    // Set callbacks
-    glfwSetKeyCallback(window, keyCallback);
-    glfwSetMouseButtonCallback(window, mouseButtonCallback);
-    
-    // Initialize key states
-    for (int key = 0; key < 512; key++) {
-        m_currentKeys[key] = false;
-        m_previousKeys[key] = false;
-    }
+    // Clear out any garbage values from previous keys array
+    memset(m_previousKeys, 0, sizeof(m_previousKeys));
 }
 
 void InputManager::update() {
-    // Copy current keys to previous
-    m_previousKeys = m_currentKeys;
-    
-    // Update current key states
-    for (int key = 0; key < 512; key++) {
-        m_currentKeys[key] = glfwGetKey(m_window, key) == GLFW_PRESS;
+    // Traverse all possible keys to save their state from the PREVIOUS frame.
+    // This MUST be called before glfwPollEvents() so that we save the old
+    // input values before they get updated with the new events this frame.
+    for (int key = 0; key <= GLFW_KEY_LAST; key++) {
+        m_previousKeys[key] = (glfwGetKey(m_window, key) == GLFW_PRESS);
     }
 }
 
-void InputManager::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    // This is called by GLFW, we could handle immediate actions here
-    // But we'll rely on the update method for simplicity
-}
-
-void InputManager::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    // Handle mouse button input if needed
-}
-
 bool InputManager::isKeyPressed(int key) const {
-    return m_currentKeys[key];
+    // Returns true if the key is held down right now
+    return glfwGetKey(m_window, key) == GLFW_PRESS;
 }
 
 bool InputManager::isKeyJustPressed(int key) const {
-    return m_currentKeys[key] && !m_previousKeys[key];
+    // Returns true if the key is down now, but wasn't in the previous frame
+    bool current = (glfwGetKey(m_window, key) == GLFW_PRESS);
+    bool previous = m_previousKeys[key];
+    return current && !previous;
 }
 
 bool InputManager::isKeyJustReleased(int key) const {
-    return !m_currentKeys[key] && m_previousKeys[key];
+    // Returns true if the key is up now, but was down in the previous frame
+    bool current = (glfwGetKey(m_window, key) == GLFW_PRESS);
+    bool previous = m_previousKeys[key];
+    return !current && previous;
 }

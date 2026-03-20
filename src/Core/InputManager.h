@@ -1,45 +1,48 @@
 #pragma once
 
-#include <unordered_map>
 #include "GLFW/glfw3.h"
 
 /**
- * InputManager - Handles keyboard and mouse input
+ * InputManager Class:
+ * Manages tracking which controller/keyboard keys the player presses.
+ * It's structured as a "Singleton", meaning there's mathematically only ever
+ * ONE InputManager existing in memory anywhere.
  */
 class InputManager {
 private:
+    // Only instance available system-wide
     static InputManager* s_instance;
-    
     GLFWwindow* m_window;
-    std::unordered_map<int, bool> m_currentKeys;
-    std::unordered_map<int, bool> m_previousKeys;
     
+    // An array keeping track of all keyboard keys states from the PREVIOUS game frame
+    // This allows us to see if a key was "just pressed" instead of "held down"
+    bool m_previousKeys[GLFW_KEY_LAST + 1];
+    
+    // Private constructor (prevents making a second InputManager via `new`)
     InputManager();
     ~InputManager() = default;
     
-    // GLFW callback functions
-    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
-    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-    
 public:
-    // Delete copy constructor and assignment operator
+    // Delete copy constructor so nobody copies our unique singleton reference
     InputManager(const InputManager&) = delete;
     InputManager& operator=(const InputManager&) = delete;
     
+    // Retrieves the one universal instance of this InputManager
     static InputManager* getInstance();
     
-    // Initialize input manager with window
+    // Tell the InputManager which window we are capturing keys from
     void init(GLFWwindow* window);
     
-    // Update input states (call once per frame)
+    // Takes a screenshot of current hardware state BEFORE OS polling to use for comparison
     void update();
     
-    // Check if a key is currently pressed
+    // Returns `true` if a key is being held down consistently
     bool isKeyPressed(int key) const;
     
-    // Check if a key was just pressed this frame
+    // Returns `true` only for the first frame a key was physically mashed down.
+    // Incredibly important for UI and Snake movement so we don't rapid-fire move.
     bool isKeyJustPressed(int key) const;
     
-    // Check if a key was just released this frame
+    // Returns `true` exactly on the frame the player let go of the button
     bool isKeyJustReleased(int key) const;
 };

@@ -1,13 +1,13 @@
 #include "Core/Renderer.h"
 #include <iostream>
 
-// Vertex data for a quad (two triangles)
+// Vertex data for a quad (two triangles) - Origins at top-left corner
 const float vertices[] = {
-    // Position (x, y)    // Texture coord (u, v) - we'll use for color mapping
-    -0.5f, -0.5f, 0.0f, 0.0f,
-     0.5f, -0.5f, 1.0f, 0.0f,
-     0.5f,  0.5f, 1.0f, 1.0f,
-    -0.5f,  0.5f, 0.0f, 1.0f
+    // Position (x, y)    // Texture coord (u, v)
+    0.0f, 0.0f, 0.0f, 0.0f, // Top-left
+    1.0f, 0.0f, 1.0f, 0.0f, // Top-right
+    1.0f, 1.0f, 1.0f, 1.0f, // Bottom-right
+    0.0f, 1.0f, 0.0f, 1.0f  // Bottom-left
 };
 
 const unsigned int indices[] = {
@@ -64,9 +64,10 @@ bool Renderer::init() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     
-    // Enable blending for transparency
+    // Enable blending for transparency and set default background clear color
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glClearColor(0.05f, 0.05f, 0.05f, 1.0f); // Very dark gray by default
     
     return true;
 }
@@ -77,8 +78,10 @@ void Renderer::clear() const {
 
 void Renderer::beginFrame() {
     clear();
-    m_shader->use();
-    m_shader->setMat4("projection", m_projection);
+    if (m_shader) {
+        m_shader->use();
+        m_shader->setMat4("projection", m_projection);
+    }
 }
 
 void Renderer::endFrame() {
@@ -86,6 +89,8 @@ void Renderer::endFrame() {
 }
 
 void Renderer::drawRect(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color) {
+    if (!m_shader) return;
+    
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(position.x, position.y, 0.0f));
     model = glm::scale(model, glm::vec3(size.x, size.y, 1.0f));
@@ -101,7 +106,10 @@ void Renderer::drawRect(const glm::vec2& position, const glm::vec2& size, const 
 void Renderer::drawText(const std::string& text, const glm::vec2& position, float scale, const glm::vec4& color) {
     // Simplified text rendering - in a real game, you'd use a font renderer
     // For now, we'll just use a simple placeholder
-    // You could integrate stb_truetype or FreeType for actual text rendering
+    (void)text;
+    (void)position;
+    (void)scale;
+    (void)color;
 }
 
 void Renderer::setViewport(int width, int height) {
