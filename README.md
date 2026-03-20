@@ -10,7 +10,7 @@ A classic Snake game written in C++ from scratch using modern OpenGL (version 3.
 
 ---
 
-## 🏛️ Class Architecture
+## Class Architecture
 
 To better understand how the decoupled engine layers interact with the specific Game Logic, here is an overview of the system architecture:
 
@@ -18,7 +18,7 @@ To better understand how the decoupled engine layers interact with the specific 
 
 ---
 
-## 🚀 Building & Running
+## Building & Running
 
 ### Prerequisites
 - A C++17 compatible compiler (MSVC, GCC, Clang)
@@ -41,7 +41,7 @@ To better understand how the decoupled engine layers interact with the specific 
    ./build/Debug/SnakeGame.exe
    ```
 
-## 🎮 Controls
+## Controls
 * **Arrow Keys**: Change direction.
 * **P**: Pause / Unpause the game.
 * **R**: Restart the game at any time.
