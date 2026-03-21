@@ -103,16 +103,37 @@ endif()
 # Include Directories
 # ============================================================================
 
+# stb_image (header-only — just needs the include directory)
+set(STB_IMAGE_INCLUDE_DIR ${THIRD_PARTY_DIR}/stb_image)
+message(STATUS "stb_image Include: ${STB_IMAGE_INCLUDE_DIR}")
+
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${GLFW_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
     ${GLAD_INCLUDE_DIR}
+    ${THIRD_PARTY_DIR}/soloud
+    ${STB_IMAGE_INCLUDE_DIR}   # <-- add this line
 )
 
 # ============================================================================
 # Source Files
 # ============================================================================
+
+file(GLOB_RECURSE SOLOUD_SOURCES
+    ${THIRD_PARTY_DIR}/soloud/src/core/*.cpp
+    ${THIRD_PARTY_DIR}/soloud/src/audiosource/wav/*.cpp
+    ${THIRD_PARTY_DIR}/soloud/src/audiosource/wav/*.c
+    ${THIRD_PARTY_DIR}/soloud/src/backend/miniaudio/*.cpp
+)
+
+add_library(soloud STATIC ${SOLOUD_SOURCES})
+
+target_include_directories(soloud PUBLIC
+    ${THIRD_PARTY_DIR}/soloud
+)
+
+target_compile_definitions(soloud PUBLIC WITH_MINIAUDIO)
 
 set(SOURCES
     src/main.cpp
@@ -124,6 +145,8 @@ set(SOURCES
     src/Core/ResourceManager.h
     src/Core/Time.cpp
     src/Core/Time.h
+    src/Core/ParticleSystem.cpp
+    src/Core/ParticleSystem.h
     src/GameObjects/Snake.cpp
     src/GameObjects/Snake.h
     src/GameStates/GameState.cpp
@@ -141,9 +164,14 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 # Link Libraries
 # ============================================================================
 
-target_link_libraries(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME} PRIVATE
     ${GLFW_LIBRARY}
     ${PLATFORM_LIBRARIES}
+    soloud
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${THIRD_PARTY_DIR}/soloud/include
 )
 
 # ============================================================================

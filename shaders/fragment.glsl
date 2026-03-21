@@ -11,10 +11,15 @@ out vec4 FragColor;
 
 // --- UNIFORMS (GLOBAL CPU VARIABLES) ---
 // This is pushed down from C++ whenever we do `m_renderer->drawRect(..., ..., COLOR)`
-uniform vec4 color;
+uniform vec4      color;
+uniform sampler2D image;
+uniform int       useTexture;
 
 void main() {
-    // Because we are making a simple flat-color shape (and not drawing an image URL),
-    // we literally just echo out the specific RGBA color variable given to us!
-    FragColor = color;
+    if (useTexture == 1) {
+        // Multiply texture sample by tint; tint defaults to white (no change)
+        FragColor = texture(image, TexCoord) * color;
+    } else {
+        FragColor = color;
+    }
 }

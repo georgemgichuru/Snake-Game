@@ -2,9 +2,73 @@
 #include <iostream>
 #include <random>
 
+// Returns the correct texture name for each body segment based on its neighbors.
+// toHead / toTail are the grid-directions FROM this segment TOWARD its neighbors.
+static Direction directionBetween(const glm::vec2& from, const glm::vec2& to) {
+    glm::vec2 d = to - from;
+    if      (d.x >  0) return Direction::RIGHT;
+    else if (d.x <  0) return Direction::LEFT;
+    else if (d.y >  0) return Direction::DOWN;
+    else               return Direction::UP;
+}
+
+static std::string headSprite(Direction dir) {
+    switch (dir) {
+        case Direction::UP:    return "head_up";
+        case Direction::DOWN:  return "head_down";
+        case Direction::LEFT:  return "head_left";
+        case Direction::RIGHT: return "head_right";
+    }
+    return "head_right";
+}
+
+static std::string tailSprite(const glm::vec2& tail, const glm::vec2& beforeTail) {
+    // The tail "points away" from the body — opposite of direction toward beforeTail
+    Direction toward = directionBetween(tail, beforeTail);
+    switch (toward) {
+        case Direction::UP:    return "tail_down";
+        case Direction::DOWN:  return "tail_up";
+        case Direction::LEFT:  return "tail_right";
+        case Direction::RIGHT: return "tail_left";
+    }
+    return "tail_right";
+}
+
+static std::string bodySprite(const glm::vec2& prev,   // head-side neighbor
+                               const glm::vec2& curr,
+                               const glm::vec2& next) { // tail-side neighbor
+    Direction toHead = directionBetween(curr, prev);
+    Direction toTail = directionBetween(curr, next);
+
+    // Straight pieces
+    bool horizontal = (toHead == Direction::LEFT  || toHead == Direction::RIGHT) &&
+                      (toTail == Direction::LEFT  || toTail == Direction::RIGHT);
+    bool vertical   = (toHead == Direction::UP    || toHead == Direction::DOWN)  &&
+                      (toTail == Direction::UP    || toTail == Direction::DOWN);
+
+    if (horizontal) return "body_horizontal";
+    if (vertical)   return "body_vertical";
+
+    // Corner pieces — named by which corner the curve passes through
+    //   body_topleft     connects RIGHT + DOWN
+    //   body_topright    connects LEFT  + DOWN
+    //   body_bottomleft  connects RIGHT + UP
+    //   body_bottomright connects LEFT  + UP
+    auto has = [&](Direction a, Direction b) {
+        return (toHead == a && toTail == b) || (toHead == b && toTail == a);
+    };
+    if (has(Direction::RIGHT, Direction::DOWN)) return "body_topleft";
+    if (has(Direction::LEFT,  Direction::DOWN)) return "body_topright";
+    if (has(Direction::RIGHT, Direction::UP))   return "body_bottomleft";
+    if (has(Direction::LEFT,  Direction::UP))   return "body_bottomright";
+
+    return "body_horizontal"; // fallback
+}
+
 GameState::GameState(Renderer* renderer, InputManager* input)
     : m_renderer(renderer)
     , m_input(input)
+    , m_particles(500)
     , m_gridWidth(20)
     , m_gridHeight(15)
     , m_cellSize(40.0f)
@@ -24,6 +88,10 @@ GameState::GameState(Renderer* renderer, InputManager* input)
 }
 
 void GameState::enter() {
+    m_soloud.init();
+    m_eatSound.load("res/assets/untitled.wav");
+    m_dieSound.load("res/assets/untitled2.wav");
+
     // Initialize snake at center of grid
     Position startPos(m_gridWidth / 2, m_gridHeight / 2);
     m_snake.init(startPos, 3);
@@ -35,10 +103,22 @@ void GameState::enter() {
     
     // Generate first food
     generateFood();
+
+    // Load all snake + food sprites once (ResourceManager caches them)
+    auto* rm = ResourceManager::getInstance();
+    const std::string base = "res/assets/Graphics/";
+    for (auto& name : { "head_up","head_down","head_left","head_right",
+                        "tail_up","tail_down","tail_left","tail_right",
+                        "body_horizontal","body_vertical",
+                        "body_topleft","body_topright",
+                        "body_bottomleft","body_bottomright",
+                        "apple" }) {
+        rm->loadTexture(name, base + name + ".png");
+    }
 }
 
 void GameState::exit() {
-    // Cleanup if needed
+    m_soloud.deinit();
 }
 void GameState::update(float dt) {
     if (m_isGameOver) {
@@ -82,9 +162,19 @@ void GameState::update(float dt) {
         m_snake.move();
         movementTimer -= MOVE_INTERVAL;
         
+        // Generate a small trail behind the snake head
+        glm::vec2 headScreenPos = m_gridOffset + glm::vec2(m_snake.getHead().x * m_cellSize + m_cellSize / 2.0f, m_snake.getHead().y * m_cellSize + m_cellSize / 2.0f);
+        m_particles.Emit(1, headScreenPos, glm::vec2(0.0f, 0.0f), glm::vec4(0.2f, 1.0f, 0.2f, 0.5f));
+
         // Check for food collision
         if (m_snake.getHead().x == m_foodPosition.x && 
             m_snake.getHead().y == m_foodPosition.y) {
+            m_soloud.play(m_eatSound);
+            
+            // Generate a burst of particles when food is eaten
+            glm::vec2 foodWorldPos = m_gridOffset + glm::vec2(m_foodPosition.x * m_cellSize + m_cellSize / 2.0f, m_foodPosition.y * m_cellSize + m_cellSize / 2.0f);
+            m_particles.Emit(20, foodWorldPos, glm::vec2(0.0f, 0.0f), m_foodColor);
+            
             m_snake.grow();
             m_score++;
             generateFood();
@@ -93,12 +183,16 @@ void GameState::update(float dt) {
         // Check for collisions
         if (checkWallCollision(m_snake.getHead()) || m_snake.checkSelfCollision()) {
             m_isGameOver = true;
+            m_soloud.play(m_dieSound);
             if (m_gameOverCallback) {
                 m_gameOverCallback();
             }
             break;
         }
     }
+    
+    // Update particles
+    m_particles.Update(dt);
 }
 
 void GameState::render() {
@@ -125,33 +219,51 @@ void GameState::render() {
         );
     }
     
-    // 3. Draw the snake segments
+    // 3. Draw the snake with sprites
     const auto& segments = m_snake.getSegments();
+    auto* rm = ResourceManager::getInstance();
+
     for (size_t i = 0; i < segments.size(); i++) {
-        const auto& segment = segments[i];
-        
-        // Calculate raw position for the cell
-        glm::vec2 pos = m_gridOffset + glm::vec2(segment.x * m_cellSize, segment.y * m_cellSize);
-        
-        // Add a 1-pixel gap/margin between segments so it doesn't look like a solid blob
-        glm::vec2 insetPos = pos + glm::vec2(2.0f, 2.0f);
-        glm::vec2 insetSize = glm::vec2(m_cellSize - 4.0f, m_cellSize - 4.0f);
-        
-        // Give the head a distinct, brighter color to make direction obvious
+        glm::vec2 pos  = m_gridOffset + glm::vec2(segments[i].x * m_cellSize,
+                                                   segments[i].y * m_cellSize);
+        glm::vec2 size(m_cellSize, m_cellSize);
+
+        std::string spriteName;
         if (i == 0) {
-            // Head color (bright neon green)
-            m_renderer->drawRect(insetPos, insetSize, glm::vec4(0.2f, 1.0f, 0.2f, 1.0f));
+            spriteName = headSprite(m_snake.getDirection());
+        } else if (i == segments.size() - 1) {
+            spriteName = tailSprite(segments[i], segments[i - 1]);
         } else {
-            // Body color (darker green)
-            m_renderer->drawRect(insetPos, insetSize, glm::vec4(0.1f, 0.6f, 0.1f, 1.0f));
+            spriteName = bodySprite(segments[i - 1], segments[i], segments[i + 1]);
+        }
+
+        auto tex = rm->getTexture(spriteName);
+        if (tex) {
+            m_renderer->drawSprite(tex, pos, size);
+        } else {
+            // Fallback colored rect if texture failed to load
+            glm::vec2 ip = pos + glm::vec2(2.0f, 2.0f);
+            glm::vec2 is = glm::vec2(m_cellSize - 4.0f, m_cellSize - 4.0f);
+            m_renderer->drawRect(ip, is, i == 0
+                ? glm::vec4(0.2f, 1.0f, 0.2f, 1.0f)
+                : glm::vec4(0.1f, 0.6f, 0.1f, 1.0f));
         }
     }
+
+    // 4. Draw food sprite
+    glm::vec2 foodPos = m_gridOffset + glm::vec2(m_foodPosition.x * m_cellSize,
+                                                  m_foodPosition.y * m_cellSize);
+    auto appleTex = rm->getTexture("apple");
+    if (appleTex) {
+        m_renderer->drawSprite(appleTex, foodPos, glm::vec2(m_cellSize, m_cellSize));
+    } else {
+        m_renderer->drawRect(foodPos + glm::vec2(4.0f, 4.0f),
+                             glm::vec2(m_cellSize - 8.0f, m_cellSize - 8.0f), m_foodColor);
+    }
     
-    // 4. Draw the food with a distinct look (red, with same inset)
-    glm::vec2 foodPos = m_gridOffset + glm::vec2(m_foodPosition.x * m_cellSize, m_foodPosition.y * m_cellSize);
-    // Draw an outer ring for a "glow" style
-    m_renderer->drawRect(foodPos + glm::vec2(4.0f, 4.0f), glm::vec2(m_cellSize - 8.0f, m_cellSize - 8.0f), m_foodColor);
-    
+    // Draw particles
+    m_particles.Draw(m_renderer);
+
     // 5. Draw screen overlay states (Pause / Game Over)
     if (m_isPaused) {
         // Draw a dark semi-transparent overlay

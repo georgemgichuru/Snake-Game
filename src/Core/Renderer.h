@@ -53,6 +53,11 @@ public:
     
     // Renders a colored rectangle at the targeted XY position with the given WidthxHeight sizes
     void drawRect(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color);
+
+    void drawSprite(const std::shared_ptr<Texture2D>& texture,
+                    const glm::vec2& position,
+                    const glm::vec2& size,
+                    const glm::vec4& tint = glm::vec4(1.0f));
     
     // Placeholder for drawing fonts.
     void drawText(const std::string& text, const glm::vec2& position, float scale, const glm::vec4& color);

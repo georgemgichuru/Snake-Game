@@ -4,7 +4,10 @@
 #include <glm/glm.hpp>
 #include "Core/Renderer.h"
 #include "Core/InputManager.h"
+#include "Core/ParticleSystem.h"
 #include "GameObjects/Snake.h"
+#include "soloud.h"
+#include "soloud_wav.h"
 
 /**
  * GameState Class:
@@ -21,6 +24,8 @@ private:
     // GAME OBJECTS & DATA
     // ----------------------------------------------------
     Snake m_snake;
+    ParticleSystem m_particles;
+
     
     glm::vec2 m_foodPosition; // Where is the food hiding on the grid?
     glm::vec4 m_foodColor;    // Color profile for the food item
@@ -40,6 +45,10 @@ private:
     // to do things like printing logs natively out there.
     std::function<void()> m_playCallback;
     std::function<void()> m_gameOverCallback;
+
+    SoLoud::Soloud m_soloud;
+    SoLoud::Wav m_eatSound;
+    SoLoud::Wav m_dieSound;
     
     // ----------------------------------------------------
     // INTERNAL HELPERS

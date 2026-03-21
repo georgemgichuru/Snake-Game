@@ -81,6 +81,8 @@ void Renderer::beginFrame() {
     if (m_shader) {
         m_shader->use();
         m_shader->setMat4("projection", m_projection);
+        m_shader->setInt("image", 0);       // texture unit 0
+        m_shader->setInt("useTexture", 0);  // default: colored rect mode
     }
 }
 
@@ -97,10 +99,35 @@ void Renderer::drawRect(const glm::vec2& position, const glm::vec2& size, const 
     
     m_shader->setMat4("model", model);
     m_shader->setVec4("color", color);
+    m_shader->setInt("useTexture", 0);
     
     glBindVertexArray(m_vao);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
+}
+
+void Renderer::drawSprite(const std::shared_ptr<Texture2D>& texture,
+                          const glm::vec2& position,
+                          const glm::vec2& size,
+                          const glm::vec4& tint) {
+    if (!m_shader || !texture) return;
+
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(position.x, position.y, 0.0f));
+    model = glm::scale(model, glm::vec3(size.x, size.y, 1.0f));
+
+    m_shader->setMat4("model", model);
+    m_shader->setVec4("color", tint);
+    m_shader->setInt("useTexture", 1);
+
+    texture->bind(0);
+
+    glBindVertexArray(m_vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+
+    // Reset back to colored rect mode for the next draw call
+    m_shader->setInt("useTexture", 0);
 }
 
 void Renderer::drawText(const std::string& text, const glm::vec2& position, float scale, const glm::vec4& color) {

@@ -1,3 +1,7 @@
+// stb_image implementation — compiled once here, included elsewhere as a header only
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include "Core/ResourceManager.h"
 #include <fstream>
 #include <sstream>
@@ -118,5 +122,56 @@ std::shared_ptr<Shader> ResourceManager::getShader(const std::string& name) {
     if (it != m_shaders.end()) {
         return it->second;
     }
+    return nullptr;
+}
+
+std::shared_ptr<Texture2D> ResourceManager::loadTexture(const std::string& name,
+                                                         const std::string& path) {
+    // Return cached copy if already loaded
+    auto it = m_textures.find(name);
+    if (it != m_textures.end()) return it->second;
+
+    // stb_image loads top-left first; OpenGL expects bottom-left, so flip it
+    stbi_set_flip_vertically_on_load(true);
+
+    int width, height, channels;
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
+    if (!data) {
+        std::cerr << "Failed to load texture: " << path << std::endl;
+        return nullptr;
+    }
+
+    // Decide internal format based on whether the image has an alpha channel
+    GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
+
+    unsigned int id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D, id);
+
+    // Wrap mode: clamp so edges don't bleed when sampling near borders
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // Linear filtering keeps sprites crisp when scaled to cell size
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    auto tex    = std::make_shared<Texture2D>();
+    tex->ID     = id;
+    tex->width  = width;
+    tex->height = height;
+
+    m_textures[name] = tex;
+    return tex;
+}
+
+std::shared_ptr<Texture2D> ResourceManager::getTexture(const std::string& name) {
+    auto it = m_textures.find(name);
+    if (it != m_textures.end()) return it->second;
     return nullptr;
 }

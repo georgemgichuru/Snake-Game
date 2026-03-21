@@ -7,6 +7,7 @@
 #include "GLFW/glfw3.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include "Texture2D.h"
 
 /**
  * Shader Object Class:
@@ -69,6 +70,8 @@ private:
     static ResourceManager* s_instance;
     // Map tracking our shaders by a convenient string name, like "basic"
     std::unordered_map<std::string, std::shared_ptr<Shader>> m_shaders;
+    // Map tracking textures
+    std::unordered_map<std::string, std::shared_ptr<Texture2D>> m_textures;
     
     ResourceManager() = default;
     ~ResourceManager() = default;
@@ -94,4 +97,8 @@ public:
     
     // General utility just to read any text file outright into a single string
     static std::string readFile(const std::string& path);
+
+    // Textures
+    std::shared_ptr<Texture2D> loadTexture(const std::string& name, const std::string& path);
+    std::shared_ptr<Texture2D> getTexture(const std::string& name);
 };
