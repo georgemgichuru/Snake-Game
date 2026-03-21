@@ -25,7 +25,7 @@ class Snake {
 private:
     std::deque<Position> m_segments; // Array of grid coordinates making up the body
     Direction m_direction;           // The direction we are CURRENTLY moving this exact tile
-    Direction m_nextDirection;       // The direction Cued Up for next tile (prevents button-mashing errors)
+    std::deque<Direction> m_directionQueue; // Input queue to prevent button-mashing bugs and suicide U-turns
     bool m_growPending;              // If true, next time we move we DON'T remove the tail (effectively growing +1 unit)
     
 public:

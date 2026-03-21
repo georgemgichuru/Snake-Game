@@ -130,13 +130,32 @@ void Renderer::drawSprite(const std::shared_ptr<Texture2D>& texture,
     m_shader->setInt("useTexture", 0);
 }
 
-void Renderer::drawText(const std::string& text, const glm::vec2& position, float scale, const glm::vec4& color) {
-    // Simplified text rendering - in a real game, you'd use a font renderer
-    // For now, we'll just use a simple placeholder
-    (void)text;
-    (void)position;
-    (void)scale;
-    (void)color;
+bool Renderer::initText(const std::string& fontPath, unsigned int fontSize) {
+    m_textRenderer = std::make_unique<TextRenderer>(m_screenWidth, m_screenHeight);
+    return m_textRenderer->init(fontPath, fontSize);
+}
+
+void Renderer::drawText(const std::string& text,
+                        float x, float y,
+                        float scale,
+                        const glm::vec4& color,
+                        bool centreX) {
+    if (!m_textRenderer) return;
+
+    if (centreX) {
+        float w = m_textRenderer->measureText(text, scale);
+        x = (m_screenWidth - w) / 2.0f;
+    }
+
+    m_textRenderer->drawText(text, x, y, scale, color);
+
+    // Restore the sprite shader so subsequent drawRect/drawSprite calls work
+    if (m_shader) {
+        m_shader->use();
+        m_shader->setMat4("projection", m_projection);
+        m_shader->setInt("image", 0);
+        m_shader->setInt("useTexture", 0);
+    }
 }
 
 void Renderer::setViewport(int width, int height) {

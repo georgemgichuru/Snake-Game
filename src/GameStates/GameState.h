@@ -9,6 +9,14 @@
 #include "soloud.h"
 #include "soloud_wav.h"
 
+// The four distinct screens the game can be in
+enum class AppState {
+    START,      // "Press ENTER to start" splash
+    PLAYING,    // Normal gameplay
+    PAUSED,     // Paused overlay
+    GAME_OVER   // Death overlay with final score
+};
+
 /**
  * GameState Class:
  * Forms the core "Rules Engine" of the actual Snake Game concept. 
@@ -37,9 +45,11 @@ private:
     glm::vec2 m_gridOffset;   // Pixel pushing to center the board inside the Window
     
     // Tracking flags
-    bool m_isGameOver; 
-    bool m_isPaused;
-    int m_score;
+    AppState m_appState = AppState::START;
+    bool m_isGameOver = false; 
+    bool m_isPaused = false;
+    int m_score = 0;
+    int m_highScore = 0;
     
     // Optional Callbacks. Essentially functions we can fire back into `main.cpp` 
     // to do things like printing logs natively out there.
@@ -56,6 +66,7 @@ private:
     void generateFood();
     bool checkWallCollision(const glm::vec2& position);
     bool checkSelfCollision();
+    void resetGame();
     
 public:
     // Takes references to the engine layers so GameState can make demands of them

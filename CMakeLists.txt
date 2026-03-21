@@ -100,6 +100,48 @@ else() # Linux/Unix
 endif()
 
 # ============================================================================
+# FreeType
+# ============================================================================
+set(FREETYPE_DIR ${THIRD_PARTY_DIR}/freetype)
+
+# Prefer a prebuilt layout (include/ + lib/)
+if(EXISTS ${FREETYPE_DIR}/include AND EXISTS ${FREETYPE_DIR}/lib)
+    set(FREETYPE_INCLUDE_DIR ${FREETYPE_DIR}/include)
+
+    if(WIN32)
+        # Try both common naming conventions
+        if(EXISTS ${FREETYPE_DIR}/lib/freetype.lib)
+            set(FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/freetype.lib)
+        elseif(EXISTS ${FREETYPE_DIR}/lib/freetyped.lib)
+            set(FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/freetyped.lib)
+        else()
+            file(GLOB FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/*.lib)
+            list(GET FREETYPE_LIBRARY 0 FREETYPE_LIBRARY)
+        endif()
+    elseif(APPLE)
+        file(GLOB FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/*.dylib ${FREETYPE_DIR}/lib/*.a)
+        list(GET FREETYPE_LIBRARY 0 FREETYPE_LIBRARY)
+    else()
+        file(GLOB FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/*.so ${FREETYPE_DIR}/lib/*.a)
+        list(GET FREETYPE_LIBRARY 0 FREETYPE_LIBRARY)
+    endif()
+
+    message(STATUS "FreeType Include : ${FREETYPE_INCLUDE_DIR}")
+    message(STATUS "FreeType Library : ${FREETYPE_LIBRARY}")
+
+elseif(EXISTS ${FREETYPE_DIR}/CMakeLists.txt)
+    # FreeType shipped as source — build it as a sub-project
+    add_subdirectory(${FREETYPE_DIR})
+    set(FREETYPE_INCLUDE_DIR ${FREETYPE_DIR}/include)
+    set(FREETYPE_LIBRARY     freetype)
+    message(STATUS "FreeType built from source at: ${FREETYPE_DIR}")
+
+else()
+    message(FATAL_ERROR "Cannot find FreeType in ${FREETYPE_DIR}. "
+                        "Expected either include/+lib/ (prebuilt) or CMakeLists.txt (source).")
+endif()
+
+# ============================================================================
 # Include Directories
 # ============================================================================
 
@@ -113,7 +155,9 @@ include_directories(
     ${GLM_INCLUDE_DIR}
     ${GLAD_INCLUDE_DIR}
     ${THIRD_PARTY_DIR}/soloud
-    ${STB_IMAGE_INCLUDE_DIR}   # <-- add this line
+    ${STB_IMAGE_INCLUDE_DIR}
+    ${FREETYPE_INCLUDE_DIR}
+    ${FREETYPE_INCLUDE_DIR}/freetype2
 )
 
 # ============================================================================
@@ -141,6 +185,8 @@ set(SOURCES
     src/Core/InputManager.h
     src/Core/Renderer.cpp
     src/Core/Renderer.h
+    src/Core/TextRenderer.cpp
+    src/Core/TextRenderer.h
     src/Core/ResourceManager.cpp
     src/Core/ResourceManager.h
     src/Core/Time.cpp
@@ -168,6 +214,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${GLFW_LIBRARY}
     ${PLATFORM_LIBRARIES}
     soloud
+    ${FREETYPE_LIBRARY}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -199,6 +246,16 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
         COMMENT "Copying shaders to output directory"
+    )
+endif()
+
+# Copy res to output directory
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/res)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/res
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/res
+        COMMENT "Copying res to output directory"
     )
 endif()
 
@@ -248,6 +305,7 @@ message(STATUS "GLFW Include: ${GLFW_INCLUDE_DIR}")
 message(STATUS "GLFW Library: ${GLFW_LIBRARY}")
 message(STATUS "GLM Include: ${GLM_INCLUDE_DIR}")
 message(STATUS "GLAD Include: ${GLAD_INCLUDE_DIR}")
+message(STATUS "FreeType: ${FREETYPE_LIBRARY}")
 message(STATUS "Output Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "========================================")
 message(STATUS "")

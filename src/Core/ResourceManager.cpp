@@ -131,8 +131,10 @@ std::shared_ptr<Texture2D> ResourceManager::loadTexture(const std::string& name,
     auto it = m_textures.find(name);
     if (it != m_textures.end()) return it->second;
 
-    // stb_image loads top-left first; OpenGL expects bottom-left, so flip it
-    stbi_set_flip_vertically_on_load(true);
+    // We do NOT flip vertically because our orthographic projection
+    // Y-axis points down (0.0f at top, height at bottom), and our Quad
+    // maps Top-Left (0,0) to UV (0,0). stbi loads top-left first.
+    stbi_set_flip_vertically_on_load(false);
 
     int width, height, channels;
     unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);

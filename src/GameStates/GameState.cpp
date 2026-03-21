@@ -50,17 +50,17 @@ static std::string bodySprite(const glm::vec2& prev,   // head-side neighbor
     if (vertical)   return "body_vertical";
 
     // Corner pieces — named by which corner the curve passes through
-    //   body_topleft     connects RIGHT + DOWN
-    //   body_topright    connects LEFT  + DOWN
-    //   body_bottomleft  connects RIGHT + UP
-    //   body_bottomright connects LEFT  + UP
+    //   body_topleft     connects LEFT  + UP
+    //   body_topright    connects RIGHT + UP
+    //   body_bottomleft  connects LEFT  + DOWN
+    //   body_bottomright connects RIGHT + DOWN
     auto has = [&](Direction a, Direction b) {
         return (toHead == a && toTail == b) || (toHead == b && toTail == a);
     };
-    if (has(Direction::RIGHT, Direction::DOWN)) return "body_topleft";
-    if (has(Direction::LEFT,  Direction::DOWN)) return "body_topright";
-    if (has(Direction::RIGHT, Direction::UP))   return "body_bottomleft";
-    if (has(Direction::LEFT,  Direction::UP))   return "body_bottomright";
+    if (has(Direction::LEFT,  Direction::UP))   return "body_topleft";
+    if (has(Direction::RIGHT, Direction::UP))   return "body_topright";
+    if (has(Direction::LEFT,  Direction::DOWN)) return "body_bottomleft";
+    if (has(Direction::RIGHT, Direction::DOWN)) return "body_bottomright";
 
     return "body_horizontal"; // fallback
 }
@@ -92,19 +92,17 @@ void GameState::enter() {
     m_eatSound.load("res/assets/untitled.wav");
     m_dieSound.load("res/assets/untitled2.wav");
 
-    // Initialize snake at center of grid
+    m_appState = AppState::START;
+
     Position startPos(m_gridWidth / 2, m_gridHeight / 2);
     m_snake.init(startPos, 3);
-    
-    // Reset game state
     m_isGameOver = false;
-    m_isPaused = false;
-    m_score = 0;
-    
-    // Generate first food
+    m_isPaused   = false;
+    m_score      = 0;
+    m_highScore  = 0;
     generateFood();
 
-    // Load all snake + food sprites once (ResourceManager caches them)
+    // Load all snake + food sprites
     auto* rm = ResourceManager::getInstance();
     const std::string base = "res/assets/Graphics/";
     for (auto& name : { "head_up","head_down","head_left","head_right",
@@ -115,95 +113,124 @@ void GameState::enter() {
                         "apple" }) {
         rm->loadTexture(name, base + name + ".png");
     }
+
+    // Init text rendering with a font from res/assets/fonts/
+    m_renderer->initText("res/assets/fonts/font.ttf", 28);
 }
 
 void GameState::exit() {
     m_soloud.deinit();
 }
-void GameState::update(float dt) {
-    if (m_isGameOver) {
-        return;
-    }
-    
-    if (m_isPaused) {
-        // Check for unpause
-        if (m_input->isKeyJustPressed(GLFW_KEY_P)) {
-            m_isPaused = false;
-        }
-        return;
-    }
-    
-    // Handle input - update direction based on key presses
-    if (m_input->isKeyJustPressed(GLFW_KEY_UP)) {
-        m_snake.setDirection(Direction::UP);
-    } else if (m_input->isKeyJustPressed(GLFW_KEY_DOWN)) {
-        m_snake.setDirection(Direction::DOWN);
-    } else if (m_input->isKeyJustPressed(GLFW_KEY_LEFT)) {
-        m_snake.setDirection(Direction::LEFT);
-    } else if (m_input->isKeyJustPressed(GLFW_KEY_RIGHT)) {
-        m_snake.setDirection(Direction::RIGHT);
-    }
-    
-    // Handle pause
-    if (m_input->isKeyJustPressed(GLFW_KEY_P)) {
-        m_isPaused = true;
-        return;
-    }
-    
-    // Fixed timestep movement
-    static float movementTimer = 0.0f;
-    movementTimer += dt;
-    
-    // Move every 0.15 seconds (adjust this value to change speed)
-    const float MOVE_INTERVAL = 0.15f;
-    
-    while (movementTimer >= MOVE_INTERVAL) {
-        // Move the snake
-        m_snake.move();
-        movementTimer -= MOVE_INTERVAL;
-        
-        // Generate a small trail behind the snake head
-        glm::vec2 headScreenPos = m_gridOffset + glm::vec2(m_snake.getHead().x * m_cellSize + m_cellSize / 2.0f, m_snake.getHead().y * m_cellSize + m_cellSize / 2.0f);
-        m_particles.Emit(1, headScreenPos, glm::vec2(0.0f, 0.0f), glm::vec4(0.2f, 1.0f, 0.2f, 0.5f));
 
-        // Check for food collision
-        if (m_snake.getHead().x == m_foodPosition.x && 
-            m_snake.getHead().y == m_foodPosition.y) {
-            m_soloud.play(m_eatSound);
-            
-            // Generate a burst of particles when food is eaten
-            glm::vec2 foodWorldPos = m_gridOffset + glm::vec2(m_foodPosition.x * m_cellSize + m_cellSize / 2.0f, m_foodPosition.y * m_cellSize + m_cellSize / 2.0f);
-            m_particles.Emit(20, foodWorldPos, glm::vec2(0.0f, 0.0f), m_foodColor);
-            
-            m_snake.grow();
-            m_score++;
-            generateFood();
+void GameState::resetGame() {
+    Position startPos(m_gridWidth / 2, m_gridHeight / 2);
+    m_snake.init(startPos, 3);
+    m_isGameOver = false;
+    m_isPaused   = false;
+    m_score      = 0;
+    generateFood();
+    // Reset particle timer so there's no burst of old particles
+    static float movementTimer = 0.0f;
+    movementTimer = 0.0f;
+}
+
+void GameState::update(float dt) {
+    switch (m_appState) {
+
+    case AppState::START:
+        if (m_input->isKeyJustPressed(GLFW_KEY_ENTER)) {
+            resetGame();
+            m_appState = AppState::PLAYING;
         }
-        
-        // Check for collisions
-        if (checkWallCollision(m_snake.getHead()) || m_snake.checkSelfCollision()) {
-            m_isGameOver = true;
-            m_soloud.play(m_dieSound);
-            if (m_gameOverCallback) {
-                m_gameOverCallback();
-            }
+        break;
+
+    case AppState::GAME_OVER:
+        if (m_input->isKeyJustPressed(GLFW_KEY_R)) {
+            resetGame();
+            m_appState = AppState::PLAYING;
+        }
+        if (m_input->isKeyJustPressed(GLFW_KEY_ESCAPE)) {
+            // Let the main loop handle window close via ESCAPE
+        }
+        break;
+
+    case AppState::PAUSED:
+        if (m_input->isKeyJustPressed(GLFW_KEY_P)) {
+            m_appState  = AppState::PLAYING;
+            m_isPaused  = false;
+        }
+        break;
+
+    case AppState::PLAYING: {
+        // Cap dt to 100ms max — prevents a huge first-frame spike
+        // from making the snake jump multiple cells instantly
+        if (dt > 0.1f) dt = 0.1f;
+
+        // Direction input
+        if (m_input->isKeyJustPressed(GLFW_KEY_UP))    m_snake.setDirection(Direction::UP);
+        else if (m_input->isKeyJustPressed(GLFW_KEY_DOWN))  m_snake.setDirection(Direction::DOWN);
+        else if (m_input->isKeyJustPressed(GLFW_KEY_LEFT))  m_snake.setDirection(Direction::LEFT);
+        else if (m_input->isKeyJustPressed(GLFW_KEY_RIGHT)) m_snake.setDirection(Direction::RIGHT);
+
+        if (m_input->isKeyJustPressed(GLFW_KEY_P)) {
+            m_appState = AppState::PAUSED;
+            m_isPaused = true;
             break;
         }
-    }
-    
-    // Update particles
-    m_particles.Update(dt);
+
+        static float movementTimer = 0.0f;
+        movementTimer += dt;
+        const float MOVE_INTERVAL = 0.15f;
+
+        while (movementTimer >= MOVE_INTERVAL) {
+            m_snake.move();
+            movementTimer -= MOVE_INTERVAL;
+
+            glm::vec2 headScreenPos = m_gridOffset +
+                glm::vec2(m_snake.getHead().x * m_cellSize + m_cellSize / 2.0f,
+                          m_snake.getHead().y * m_cellSize + m_cellSize / 2.0f);
+            m_particles.Emit(1, headScreenPos, glm::vec2(0.0f), glm::vec4(0.2f, 1.0f, 0.2f, 0.5f));
+
+            // Food collision
+            if (m_snake.getHead().x == m_foodPosition.x &&
+                m_snake.getHead().y == m_foodPosition.y) {
+                m_soloud.play(m_eatSound);
+                glm::vec2 foodWorldPos = m_gridOffset +
+                    glm::vec2(m_foodPosition.x * m_cellSize + m_cellSize / 2.0f,
+                              m_foodPosition.y * m_cellSize + m_cellSize / 2.0f);
+                m_particles.Emit(20, foodWorldPos, glm::vec2(0.0f), m_foodColor);
+                m_snake.grow();
+                m_score++;
+                if (m_score > m_highScore) m_highScore = m_score;
+                generateFood();
+            }
+
+            // Death collision
+            if (checkWallCollision(m_snake.getHead()) || m_snake.checkSelfCollision()) {
+                m_isGameOver = true;
+                m_appState   = AppState::GAME_OVER;
+                m_soloud.play(m_dieSound);
+                if (m_gameOverCallback) m_gameOverCallback();
+                break;
+            }
+        }
+
+        m_particles.Update(dt);
+        break;
+    } // case PLAYING
+
+    } // switch
 }
 
 void GameState::render() {
-    // 1. Draw the main playfield background (a slightly lighter dark grey)
+    // ── Always draw the playfield so it shows through all overlays ──
     m_renderer->drawRect(
         m_gridOffset,
         glm::vec2(m_gridWidth * m_cellSize, m_gridHeight * m_cellSize),
         glm::vec4(0.12f, 0.12f, 0.15f, 1.0f)
     );
-    
-    // 2. Draw subtle grid lines to make the cells visible
+
+    // Grid lines
     for (int i = 0; i <= m_gridWidth; i++) {
         m_renderer->drawRect(
             glm::vec2(m_gridOffset.x + i * m_cellSize, m_gridOffset.y),
@@ -218,69 +245,108 @@ void GameState::render() {
             glm::vec4(0.2f, 0.2f, 0.25f, 0.4f)
         );
     }
-    
-    // 3. Draw the snake with sprites
+
+    // ── Snake + Food (show even on START so the player sees the board) ──
     const auto& segments = m_snake.getSegments();
     auto* rm = ResourceManager::getInstance();
 
     for (size_t i = 0; i < segments.size(); i++) {
-        glm::vec2 pos  = m_gridOffset + glm::vec2(segments[i].x * m_cellSize,
-                                                   segments[i].y * m_cellSize);
-        glm::vec2 size(m_cellSize, m_cellSize);
-
+        glm::vec2 pos(m_gridOffset + glm::vec2(segments[i].x * m_cellSize,
+                                                segments[i].y * m_cellSize));
+        glm::vec2 sz(m_cellSize, m_cellSize);
         std::string spriteName;
-        if (i == 0) {
+        if (i == 0)
             spriteName = headSprite(m_snake.getDirection());
-        } else if (i == segments.size() - 1) {
+        else if (i == segments.size() - 1)
             spriteName = tailSprite(segments[i], segments[i - 1]);
-        } else {
+        else
             spriteName = bodySprite(segments[i - 1], segments[i], segments[i + 1]);
-        }
 
         auto tex = rm->getTexture(spriteName);
-        if (tex) {
-            m_renderer->drawSprite(tex, pos, size);
-        } else {
-            // Fallback colored rect if texture failed to load
-            glm::vec2 ip = pos + glm::vec2(2.0f, 2.0f);
-            glm::vec2 is = glm::vec2(m_cellSize - 4.0f, m_cellSize - 4.0f);
+        if (tex)
+            m_renderer->drawSprite(tex, pos, sz);
+        else {
+            glm::vec2 ip = pos + glm::vec2(2.0f);
+            glm::vec2 is = glm::vec2(m_cellSize - 4.0f);
             m_renderer->drawRect(ip, is, i == 0
                 ? glm::vec4(0.2f, 1.0f, 0.2f, 1.0f)
                 : glm::vec4(0.1f, 0.6f, 0.1f, 1.0f));
         }
     }
 
-    // 4. Draw food sprite
-    glm::vec2 foodPos = m_gridOffset + glm::vec2(m_foodPosition.x * m_cellSize,
-                                                  m_foodPosition.y * m_cellSize);
+    glm::vec2 foodPos = m_gridOffset +
+        glm::vec2(m_foodPosition.x * m_cellSize, m_foodPosition.y * m_cellSize);
     auto appleTex = rm->getTexture("apple");
-    if (appleTex) {
-        m_renderer->drawSprite(appleTex, foodPos, glm::vec2(m_cellSize, m_cellSize));
-    } else {
-        m_renderer->drawRect(foodPos + glm::vec2(4.0f, 4.0f),
-                             glm::vec2(m_cellSize - 8.0f, m_cellSize - 8.0f), m_foodColor);
-    }
-    
-    // Draw particles
+    if (appleTex)
+        m_renderer->drawSprite(appleTex, foodPos, glm::vec2(m_cellSize));
+    else
+        m_renderer->drawRect(foodPos + glm::vec2(4.0f),
+                             glm::vec2(m_cellSize - 8.0f), m_foodColor);
+
     m_particles.Draw(m_renderer);
 
-    // 5. Draw screen overlay states (Pause / Game Over)
-    if (m_isPaused) {
-        // Draw a dark semi-transparent overlay
-        m_renderer->drawRect(
-            glm::vec2(0, 0),
-            glm::vec2(m_renderer->getScreenWidth(), m_renderer->getScreenHeight()),
-            glm::vec4(0.0f, 0.0f, 0.0f, 0.5f)
-        );
+    // ── Shared score strip at the top ──
+    float sw = static_cast<float>(m_renderer->getScreenWidth());
+
+    if (m_appState == AppState::PLAYING || m_appState == AppState::PAUSED ||
+        m_appState == AppState::GAME_OVER) {
+        m_renderer->drawText("SCORE  " + std::to_string(m_score),
+                             20.0f, 10.0f, 0.8f,
+                             glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+        m_renderer->drawText("BEST  " + std::to_string(m_highScore),
+                             sw - 180.0f, 10.0f, 0.8f,
+                             glm::vec4(0.8f, 0.8f, 0.2f, 1.0f));
     }
-    
-    if (m_isGameOver) {
-        // Draw a reddish semi-transparent overlay
-        m_renderer->drawRect(
-            glm::vec2(0, 0),
-            glm::vec2(m_renderer->getScreenWidth(), m_renderer->getScreenHeight()),
-            glm::vec4(0.5f, 0.0f, 0.0f, 0.5f)
-        );
+
+    // ── State-specific overlays ──
+    float sh = static_cast<float>(m_renderer->getScreenHeight());
+
+    if (m_appState == AppState::START) {
+        // Dark vignette so text pops
+        m_renderer->drawRect({0, 0}, {sw, sh}, {0.0f, 0.0f, 0.0f, 0.55f});
+
+        m_renderer->drawText("SNAKE",
+                             0, sh * 0.30f, 2.0f,
+                             glm::vec4(0.2f, 1.0f, 0.2f, 1.0f),
+                             /*centreX=*/true);
+        m_renderer->drawText("Press ENTER to Start",
+                             0, sh * 0.50f, 0.9f,
+                             glm::vec4(1.0f, 1.0f, 1.0f, 1.0f),
+                             true);
+        m_renderer->drawText("Arrow keys to move   P to pause",
+                             0, sh * 0.62f, 0.65f,
+                             glm::vec4(0.7f, 0.7f, 0.7f, 1.0f),
+                             true);
+    }
+
+    if (m_appState == AppState::PAUSED) {
+        m_renderer->drawRect({0, 0}, {sw, sh}, {0.0f, 0.0f, 0.0f, 0.5f});
+
+        m_renderer->drawText("PAUSED",
+                             0, sh * 0.40f, 1.6f,
+                             glm::vec4(1.0f, 1.0f, 0.2f, 1.0f),
+                             true);
+        m_renderer->drawText("Press P to continue",
+                             0, sh * 0.57f, 0.85f,
+                             glm::vec4(0.9f, 0.9f, 0.9f, 1.0f),
+                             true);
+    }
+
+    if (m_appState == AppState::GAME_OVER) {
+        m_renderer->drawRect({0, 0}, {sw, sh}, {0.5f, 0.0f, 0.0f, 0.55f});
+
+        m_renderer->drawText("GAME OVER",
+                             0, sh * 0.35f, 1.6f,
+                             glm::vec4(1.0f, 0.2f, 0.2f, 1.0f),
+                             true);
+        m_renderer->drawText("Score: " + std::to_string(m_score),
+                             0, sh * 0.52f, 1.0f,
+                             glm::vec4(1.0f, 1.0f, 1.0f, 1.0f),
+                             true);
+        m_renderer->drawText("Press R to restart",
+                             0, sh * 0.65f, 0.8f,
+                             glm::vec4(0.8f, 0.8f, 0.8f, 1.0f),
+                             true);
     }
 }
 

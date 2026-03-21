@@ -23,20 +23,21 @@ void InputManager::init(GLFWwindow* window) {
 }
 
 void InputManager::update() {
-    // Traverse all possible keys to save their state from the PREVIOUS frame.
-    // This MUST be called before glfwPollEvents() so that we save the old
-    // input values before they get updated with the new events this frame.
-    for (int key = 0; key <= GLFW_KEY_LAST; key++) {
+    // Traverse all valid possible keys to save their state from the PREVIOUS frame.
+    // GLFW keys start from GLFW_KEY_SPACE (32). Below 32 are invalid.
+    for (int key = 32; key <= GLFW_KEY_LAST; key++) {
         m_previousKeys[key] = (glfwGetKey(m_window, key) == GLFW_PRESS);
     }
 }
 
 bool InputManager::isKeyPressed(int key) const {
+    if (key < 32 || key > GLFW_KEY_LAST) return false;
     // Returns true if the key is held down right now
     return glfwGetKey(m_window, key) == GLFW_PRESS;
 }
 
 bool InputManager::isKeyJustPressed(int key) const {
+    if (key < 32 || key > GLFW_KEY_LAST) return false;
     // Returns true if the key is down now, but wasn't in the previous frame
     bool current = (glfwGetKey(m_window, key) == GLFW_PRESS);
     bool previous = m_previousKeys[key];
@@ -44,6 +45,7 @@ bool InputManager::isKeyJustPressed(int key) const {
 }
 
 bool InputManager::isKeyJustReleased(int key) const {
+    if (key < 32 || key > GLFW_KEY_LAST) return false;
     // Returns true if the key is up now, but was down in the previous frame
     bool current = (glfwGetKey(m_window, key) == GLFW_PRESS);
     bool previous = m_previousKeys[key];

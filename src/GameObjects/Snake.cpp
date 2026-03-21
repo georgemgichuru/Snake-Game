@@ -3,7 +3,6 @@
 
 Snake::Snake() 
     : m_direction(Direction::RIGHT)
-    , m_nextDirection(Direction::RIGHT)
     , m_growPending(false) {
     // Initial state constructor
 }
@@ -11,10 +10,10 @@ Snake::Snake()
 void Snake::init(const Position& startPos, int initialLength) {
     // Clear out any old segments from previous runs
     m_segments.clear();
+    m_directionQueue.clear();
     
     // Reset starting directions
     m_direction = Direction::RIGHT;
-    m_nextDirection = Direction::RIGHT;
     m_growPending = false;
     
     // Create snake body segments stretching to the left
@@ -24,21 +23,29 @@ void Snake::init(const Position& startPos, int initialLength) {
 }
 
 void Snake::setDirection(Direction dir) {
+    // Evaluate the last input direction queued, or the current direction if queue is empty
+    Direction lastDir = m_directionQueue.empty() ? m_direction : m_directionQueue.back();
+
     // Prevent 180-degree turns (cannot instantly reverse into itself)
-    if ((m_direction == Direction::UP && dir == Direction::DOWN) ||
-        (m_direction == Direction::DOWN && dir == Direction::UP) ||
-        (m_direction == Direction::LEFT && dir == Direction::RIGHT) ||
-        (m_direction == Direction::RIGHT && dir == Direction::LEFT)) {
+    if ((lastDir == Direction::UP && dir == Direction::DOWN) ||
+        (lastDir == Direction::DOWN && dir == Direction::UP) ||
+        (lastDir == Direction::LEFT && dir == Direction::RIGHT) ||
+        (lastDir == Direction::RIGHT && dir == Direction::LEFT)) {
         return; // Ignore invalid input
     }
     
-    // Queue up the direction change for the next movement tick
-    m_nextDirection = dir;
+    // Queue up the direction change for the next movement ticks, capped to prevent infinite queue buildup
+    if (m_directionQueue.size() < 3) {
+        m_directionQueue.push_back(dir);
+    }
 }
 
 void Snake::move() {
     // Commit the queued direction
-    m_direction = m_nextDirection;
+    if (!m_directionQueue.empty()) {
+        m_direction = m_directionQueue.front();
+        m_directionQueue.pop_front();
+    }
     
     // Calculate new head position based on current head
     Position newHead = m_segments.front();

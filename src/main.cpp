@@ -101,13 +101,6 @@ int main() {
         glfwPollEvents();
         
         // C. GAME CONTROLS (Global Keys)
-        // If "R" is pressed, exit the old state and start a fresh game.
-        if (InputManager::getInstance()->isKeyJustPressed(GLFW_KEY_R)) {
-            gameState.exit();
-            gameState.enter();
-            std::cout << "Game restarted!" << std::endl;
-        }
-        
         // If "ESCAPE" is pressed, signal GLFW to end the main loop next frame.
         if (InputManager::getInstance()->isKeyJustPressed(GLFW_KEY_ESCAPE)) {
             glfwSetWindowShouldClose(window, true);

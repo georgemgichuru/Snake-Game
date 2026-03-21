@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "ResourceManager.h"
+#include "Core/TextRenderer.h"
 
 /**
  * Renderer Class:
@@ -59,15 +60,23 @@ public:
                     const glm::vec2& size,
                     const glm::vec4& tint = glm::vec4(1.0f));
     
-    // Placeholder for drawing fonts.
-    void drawText(const std::string& text, const glm::vec2& position, float scale, const glm::vec4& color);
+    // Initialise text rendering — call after init(), needs a .ttf path
+    bool initText(const std::string& fontPath, unsigned int fontSize = 28);
+
+    // Draws text at pixel position (x, y). Supports centreX flag for easy centering.
+    void drawText(const std::string& text, float x, float y,
+                  float scale, const glm::vec4& color,
+                  bool centreX = false);
     
     // Update drawing logic if the native Window resizes
     void setViewport(int width, int height);
-    
+
     // Get screen dimensions globally
     int getScreenWidth() const { return m_screenWidth; }
     int getScreenHeight() const { return m_screenHeight; }
     
     const glm::mat4& getProjection() const { return m_projection; }
+    
+private:
+    std::unique_ptr<TextRenderer> m_textRenderer;
 };
