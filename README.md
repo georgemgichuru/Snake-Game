@@ -10,7 +10,7 @@ A classic Snake game written in C++ from scratch using modern OpenGL (version 3.
 
 ---
 
-## Class Architecture
+## Class Diagram
 
 To better understand how the decoupled engine layers interact with the specific Game Logic, here is an overview of the system architecture:
 
@@ -46,3 +46,7 @@ To better understand how the decoupled engine layers interact with the specific 
 * **P**: Pause / Unpause the game.
 * **R**: Restart the game at any time.
 * **ESC**: Quit the application. 
+
+## Screenshots of the Game
+
+![Screenshot](image.png "Screenshot")
