@@ -1,134 +1,146 @@
 #include <iostream>
-#include "glad/glad.h"
+#include "glad/glad.h" // MUST be included before GLFW!
 #include "GLFW/glfw3.h"
 #include "Core/Time.h"
 #include "Core/InputManager.h"
 #include "Core/Renderer.h"
 #include "GameStates/GameState.h"
 
-// Window dimensions
+// Hardcoded Window dimensions and Title
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
 const char* WINDOW_TITLE = "Snake Game - OpenGL";
 
-// GLFW error callback
+// A simple callback function we hand to GLFW. If it fails to open a window, it will print why here.
 void glfwErrorCallback(int error, const char* description) {
-    (void)error; // Mark as unused to avoid warning
+    (void)error; // Cast to void to prevent compiler "unused variable" warnings
     std::cerr << "GLFW Error: " << description << std::endl;
 }
 
 int main() {
-    // 1. INITIALIZE GLFW (Graphics Library Framework)
-    // This library handles OS-specific tasks like creating windows, reading keyboard/mouse input, etc.
+    // =======================================================
+    // 1. INITIALIZE OS WINDOW MANAGER (GLFW)
+    // =======================================================
     glfwSetErrorCallback(glfwErrorCallback);
-    if (!glfwInit()) {
+    if (!glfwInit()) { // Boot up the GLFW library
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return -1;
     }
     
-    // 2. CONFIGURE OPENGL CONTEXT
-    // Tell GLFW we want to use OpenGL version 3.3 (Core Profile)
-    // "Core Profile" means we won't use backwards-compatible features (old, deprecated functions).
+    // =======================================================
+    // 2. CONFIGURE OPENGL SETTINGS
+    // =======================================================
+    // Tell GLFW we specifically want to use OpenGL Version 3.3
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    
+    // "Core Profile" means we explicitly lock out old, deprecated OpenGL functions from the 1990s.
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     
-#ifdef __APPLE__
-    // Required for Mac OS X to support modern OpenGL
+#ifdef __APPLE__ // A C++ Macro! If this code is compiled on a Mac, run the following line.
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
     
+    // =======================================================
     // 3. CREATE THE WINDOW
-    // Creates an 800x600 window with the title "Snake Game - OpenGL"
+    // =======================================================
+    // Actually ask the Operating System to open the window
     GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window" << std::endl;
-        glfwTerminate(); // Clean up GLFW before exiting
+        glfwTerminate(); // Safely clean up memory before crashing
         return -1;
     }
     
-    // Make this window the current "context", meaning all OpenGL rendering commands will draw to this window.
+    // Tells OpenGL: "Hey, any draw commands I send from now on should be painted onto THIS specific window."
     glfwMakeContextCurrent(window);
     
-    // Enable V-Sync (Vertical Synchronization).
-    // SwapInterval(1) tells GPU to wait for the monitor screen to refresh before drawing the next frame, preventing visual "tearing".
+    // Enable V-Sync (Vertical Synchronization). 
+    // Tells the GPU to wait for your monitor's refresh rate (e.g., 60hz) before swapping the buffers.
     glfwSwapInterval(1); 
     
-    // 4. INITIALIZE GLAD
-    // GLAD manages function pointers for OpenGL. Because OpenGL implementations vary by graphics card and OS,
-    // we need GLAD to find and load all the actual OpenGL rendering functions during runtime.
+    // =======================================================
+    // 4. INITIALIZE GLAD (GPU Function Detective)
+    // =======================================================
+    // Hands GLAD the OS-specific function it needs to hunt down the graphics card drivers
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
     
+    // =======================================================
     // 5. INITIALIZE OUR CUSTOM SYSTEMS
-    // Setup our Time system (tracks frame rates) and our InputManager (tracks user key presses)
+    // =======================================================
+    // Boot up the singletons
     Time::getInstance()->init();
     InputManager::getInstance()->init(window);
     
-    // Setup our custom Renderer class which sets up shaders and drawing buffers behind the scenes
+    // Boot up our custom OpenGL abstraction wrapper
     Renderer renderer(WINDOW_WIDTH, WINDOW_HEIGHT);
     if (!renderer.init()) {
         std::cerr << "Failed to initialize renderer" << std::endl;
         return -1;
     }
     
+    // =======================================================
     // 6. INITIALIZE GAME STATE
-    // State machine approach. GameState handles the core Snake mechanics.
+    // =======================================================
+    // Create the referee that dictates the rules of Snake
     GameState gameState(&renderer, InputManager::getInstance());
-    gameState.enter(); // Set up the initial state (placing snake, setting score)
+    gameState.enter(); // Trigger the boot-up sequence (load sounds, place apple, etc.)
     
-    // Provide a callback to run whenever the player hits a wall or themselves.
+    // A C++ Lambda function! This is a tiny, unnamed block of code we give to the GameState.
+    // If the snake hits a wall, the GameState will call this.
     gameState.setGameOverCallback([]() {
         std::cout << "Game Over! Press R to restart" << std::endl;
     });
     
     // =======================================================
     // 7. THE MAIN GAME LOOP
-    // This block of code runs constantly, frame after frame, until the user closes the window.
     // =======================================================
+    // This loops thousands of times a second until you hit the "X" button on the window.
     while (!glfwWindowShouldClose(window)) {
+        
         // A. TIMING
-        // Find out how much time has passed since the last loop (delta time "dt")
+        // Calculate exactly how much time passed since the last loop
         Time::getInstance()->update();
         float dt = Time::getInstance()->deltaTime();
         
         // B. INPUT
-        // 1) Update custom input manager FIRST to capture the keys from previous frame
+        // Read keystrokes from the last frame
         InputManager::getInstance()->update();
-        // 2) Collect any newly pressed OS/window events (keyboard, mouse move, window close)
-        glfwPollEvents();
         
-        // C. GAME CONTROLS (Global Keys)
-        // If "ESCAPE" is pressed, signal GLFW to end the main loop next frame.
+        // Ask the OS if the user moved the mouse, resized the window, or clicked the "X" button
+        glfwPollEvents(); 
+        
+        // C. GLOBAL CONTROLS
+        // If "ESCAPE" is pressed, politely ask the window to close, which will break this while loop on the next cycle.
         if (InputManager::getInstance()->isKeyJustPressed(GLFW_KEY_ESCAPE)) {
             glfwSetWindowShouldClose(window, true);
         }
         
-        // D. UPDATE LOGIC
-        // Feed the time elapsed (dt) into the game so the snake can move at a steady speed 
+        // D. LOGIC
+        // Advance the game logic (move the snake, check collisions, etc.)
         gameState.update(dt);
         
-        // E. RENDER (DRAW TO SCREEN)
-        // 1) Clear the screen to a blank background color
-        renderer.beginFrame();
-        // 2) Tell the game state to instruct the renderer to draw the snake, food, walls
-        gameState.render();
-        // 3) Complete any finalizing rendering steps (if any)
-        renderer.endFrame();
+        // E. RENDERING
+        renderer.beginFrame();  // Wipe the slate clean (Clear the screen)
+        gameState.render();     // Draw all the sprites to the Back Buffer
+        renderer.endFrame();    // Finalize
         
-        // Swap buffers: OpenGL draws on a "back buffer" invisibly building the frame.
-        // SwapBuffers pushes the fully finished "back buffer" frame onto the screen "front buffer" instantly.
+        // F. PRESENTATION
+        // Push the perfectly completed Back Buffer onto the screen for the user to see!
         glfwSwapBuffers(window);
     }
     
+    // =======================================================
     // 8. SHUTDOWN & CLEANUP
-    // Once loop exits (game ends), free up resources
+    // =======================================================
+    // The player closed the window! Clean up the audio engine and RAM so we don't cause memory leaks.
     gameState.exit();
     
-    glfwDestroyWindow(window); // Destroy the OS window
-    glfwTerminate(); // Turn off GLFW completely
+    glfwDestroyWindow(window); // Ask the OS to destroy the window frame
+    glfwTerminate(); // Shut down GLFW safely
     
-    return 0;
+    return 0; // Return 0 means the program closed successfully without errors!
 }

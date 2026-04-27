@@ -2,310 +2,80 @@ cmake_minimum_required(VERSION 3.10)
 project(SnakeGame VERSION 1.0.0)
 
 # ============================================================================
-# Project Configuration
+# 1. CORE SETTINGS
 # ============================================================================
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Set build type if not specified
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
-endif()
-
-# Output directories
+# Put the final compiled game (.exe) into a "bin" folder so it's easy to find
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # ============================================================================
-# Dependencies Paths
+# 2. THIRD-PARTY LIBRARIES
 # ============================================================================
+set(TP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
-# Third-party directory
-set(THIRD_PARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+# --- FreeType (Text Rendering) ---
+# Since FreeType has its own CMakeLists.txt inside its folder, we can just 
+# tell CMake to build it alongside our game from scratch!
+add_subdirectory(${TP_DIR}/freetype)
 
-# GLAD
-set(GLAD_INCLUDE_DIR ${THIRD_PARTY_DIR}/glad/include)
-set(GLAD_SOURCE ${THIRD_PARTY_DIR}/glad/src/glad.c)
-
-# GLM (header-only)
-set(GLM_INCLUDE_DIR ${THIRD_PARTY_DIR}/glm)
-
-# GLFW - Navigate into the versioned folder
-# Since you have GLFW/glfw-3.4.bin.WIN64/
-set(GLFW_BASE_DIR ${THIRD_PARTY_DIR}/GLFW)
-set(GLFW_VERSION_DIR ${GLFW_BASE_DIR}/glfw-3.4.bin.WIN64)
-
-# Check if the versioned directory exists
-if(EXISTS ${GLFW_VERSION_DIR})
-    message(STATUS "Found GLFW at: ${GLFW_VERSION_DIR}")
-    
-    # Set include directory
-    set(GLFW_INCLUDE_DIR ${GLFW_VERSION_DIR}/include)
-    
-    # For Visual Studio 2022, use lib-vc2022
-    set(GLFW_LIBRARY_DIR ${GLFW_VERSION_DIR}/lib-vc2022)
-    
-    # If lib-vc2022 doesn't exist, try other options
-    if(NOT EXISTS ${GLFW_LIBRARY_DIR})
-        if(EXISTS ${GLFW_VERSION_DIR}/lib-vc2019)
-            set(GLFW_LIBRARY_DIR ${GLFW_VERSION_DIR}/lib-vc2019)
-            message(STATUS "Using lib-vc2019 instead")
-        elseif(EXISTS ${GLFW_VERSION_DIR}/lib-vc2017)
-            set(GLFW_LIBRARY_DIR ${GLFW_VERSION_DIR}/lib-vc2017)
-            message(STATUS "Using lib-vc2017 instead")
-        elseif(EXISTS ${GLFW_VERSION_DIR}/lib-static-ucrt)
-            set(GLFW_LIBRARY_DIR ${GLFW_VERSION_DIR}/lib-static-ucrt)
-            message(STATUS "Using lib-static-ucrt instead")
-        else()
-            message(FATAL_ERROR "No GLFW library directory found. Checked: lib-vc2022, lib-vc2019, lib-vc2017, lib-static-ucrt")
-        endif()
-    endif()
-    
-    message(STATUS "GLFW Include: ${GLFW_INCLUDE_DIR}")
-    message(STATUS "GLFW Library: ${GLFW_LIBRARY_DIR}")
-    
-else()
-    message(FATAL_ERROR "Cannot find GLFW at: ${GLFW_VERSION_DIR}")
-endif()
-
-# ============================================================================
-# Platform-Specific GLFW Library
-# ============================================================================
-
-if(WIN32)
-    set(PLATFORM_LIBRARIES opengl32)
-    
-    # Check for GLFW library file
-    if(EXISTS ${GLFW_LIBRARY_DIR}/glfw3.lib)
-        set(GLFW_LIBRARY ${GLFW_LIBRARY_DIR}/glfw3.lib)
-        message(STATUS "Using static GLFW library")
-    elseif(EXISTS ${GLFW_LIBRARY_DIR}/glfw3dll.lib)
-        set(GLFW_LIBRARY ${GLFW_LIBRARY_DIR}/glfw3dll.lib)
-        set(GLFW_DLL ${GLFW_LIBRARY_DIR}/glfw3.dll)
-        message(STATUS "Using dynamic GLFW library")
-    else()
-        message(FATAL_ERROR "Cannot find GLFW library file in ${GLFW_LIBRARY_DIR}")
-    endif()
-    
-elseif(APPLE)
-    set(PLATFORM_LIBRARIES "-framework OpenGL")
-    set(GLFW_LIBRARY ${GLFW_LIBRARY_DIR}/libglfw.3.dylib)
-    
-else() # Linux/Unix
-    set(PLATFORM_LIBRARIES GL dl pthread)
-    set(GLFW_LIBRARY ${GLFW_LIBRARY_DIR}/libglfw.so.3)
-endif()
-
-# ============================================================================
-# FreeType
-# ============================================================================
-set(FREETYPE_DIR ${THIRD_PARTY_DIR}/freetype)
-
-# Prefer a prebuilt layout (include/ + lib/)
-if(EXISTS ${FREETYPE_DIR}/include AND EXISTS ${FREETYPE_DIR}/lib)
-    set(FREETYPE_INCLUDE_DIR ${FREETYPE_DIR}/include)
-
-    if(WIN32)
-        # Try both common naming conventions
-        if(EXISTS ${FREETYPE_DIR}/lib/freetype.lib)
-            set(FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/freetype.lib)
-        elseif(EXISTS ${FREETYPE_DIR}/lib/freetyped.lib)
-            set(FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/freetyped.lib)
-        else()
-            file(GLOB FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/*.lib)
-            list(GET FREETYPE_LIBRARY 0 FREETYPE_LIBRARY)
-        endif()
-    elseif(APPLE)
-        file(GLOB FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/*.dylib ${FREETYPE_DIR}/lib/*.a)
-        list(GET FREETYPE_LIBRARY 0 FREETYPE_LIBRARY)
-    else()
-        file(GLOB FREETYPE_LIBRARY ${FREETYPE_DIR}/lib/*.so ${FREETYPE_DIR}/lib/*.a)
-        list(GET FREETYPE_LIBRARY 0 FREETYPE_LIBRARY)
-    endif()
-
-    message(STATUS "FreeType Include : ${FREETYPE_INCLUDE_DIR}")
-    message(STATUS "FreeType Library : ${FREETYPE_LIBRARY}")
-
-elseif(EXISTS ${FREETYPE_DIR}/CMakeLists.txt)
-    # FreeType shipped as source — build it as a sub-project
-    add_subdirectory(${FREETYPE_DIR})
-    set(FREETYPE_INCLUDE_DIR ${FREETYPE_DIR}/include)
-    set(FREETYPE_LIBRARY     freetype)
-    message(STATUS "FreeType built from source at: ${FREETYPE_DIR}")
-
-else()
-    message(FATAL_ERROR "Cannot find FreeType in ${FREETYPE_DIR}. "
-                        "Expected either include/+lib/ (prebuilt) or CMakeLists.txt (source).")
-endif()
-
-# ============================================================================
-# Include Directories
-# ============================================================================
-
-# stb_image (header-only — just needs the include directory)
-set(STB_IMAGE_INCLUDE_DIR ${THIRD_PARTY_DIR}/stb_image)
-message(STATUS "stb_image Include: ${STB_IMAGE_INCLUDE_DIR}")
-
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${GLFW_INCLUDE_DIR}
-    ${GLM_INCLUDE_DIR}
-    ${GLAD_INCLUDE_DIR}
-    ${THIRD_PARTY_DIR}/soloud
-    ${STB_IMAGE_INCLUDE_DIR}
-    ${FREETYPE_INCLUDE_DIR}
-    ${FREETYPE_INCLUDE_DIR}/freetype2
+# --- SoLoud (Audio) ---
+# Gather the specific SoLoud source files we need, and compile them into a static library
+file(GLOB_RECURSE SOLOUD_SRC 
+    ${TP_DIR}/soloud/src/core/*.cpp 
+    ${TP_DIR}/soloud/src/audiosource/wav/*.c* ${TP_DIR}/soloud/src/backend/miniaudio/*.cpp
 )
-
-# ============================================================================
-# Source Files
-# ============================================================================
-
-file(GLOB_RECURSE SOLOUD_SOURCES
-    ${THIRD_PARTY_DIR}/soloud/src/core/*.cpp
-    ${THIRD_PARTY_DIR}/soloud/src/audiosource/wav/*.cpp
-    ${THIRD_PARTY_DIR}/soloud/src/audiosource/wav/*.c
-    ${THIRD_PARTY_DIR}/soloud/src/backend/miniaudio/*.cpp
-)
-
-add_library(soloud STATIC ${SOLOUD_SOURCES})
-
-target_include_directories(soloud PUBLIC
-    ${THIRD_PARTY_DIR}/soloud
-)
-
+add_library(soloud STATIC ${SOLOUD_SRC})
+target_include_directories(soloud PUBLIC ${TP_DIR}/soloud/include ${TP_DIR}/soloud)
 target_compile_definitions(soloud PUBLIC WITH_MINIAUDIO)
 
-set(SOURCES
-    src/main.cpp
-    src/Core/InputManager.cpp
-    src/Core/InputManager.h
-    src/Core/Renderer.cpp
-    src/Core/Renderer.h
-    src/Core/TextRenderer.cpp
-    src/Core/TextRenderer.h
-    src/Core/ResourceManager.cpp
-    src/Core/ResourceManager.h
-    src/Core/Time.cpp
-    src/Core/Time.h
-    src/Core/ParticleSystem.cpp
-    src/Core/ParticleSystem.h
-    src/GameObjects/Snake.cpp
-    src/GameObjects/Snake.h
-    src/GameStates/GameState.cpp
-    src/GameStates/GameState.h
-    ${GLAD_SOURCE}
-)
+# --- GLFW (Window & Input) ---
+# We will point directly to your pre-compiled Visual Studio 2022 binaries.
+set(GLFW_DIR ${TP_DIR}/GLFW/glfw-3.4.bin.WIN64)
+if(WIN32)
+    set(GLFW_LIB ${GLFW_DIR}/lib-vc2022/glfw3dll.lib)
+    set(PLATFORM_LIBS opengl32)
+else() # Fallbacks just in case you ever compile this on Linux
+    set(GLFW_LIB ${GLFW_DIR}/lib/libglfw.so.3)
+    set(PLATFORM_LIBS GL dl pthread)
+endif()
 
 # ============================================================================
-# Create Executable
+# 3. OUR GAME BUILD
 # ============================================================================
+# 'GLOB_RECURSE' automatically finds every single .cpp and .h file in your src folder.
+# This means you NEVER have to manually type out new files here when you make them!
+file(GLOB_RECURSE GAME_SOURCES src/*.cpp src/*.h)
 
-add_executable(${PROJECT_NAME} ${SOURCES})
+# Build the actual executable using our vacuumed game files and GLAD
+add_executable(${PROJECT_NAME} ${GAME_SOURCES} ${TP_DIR}/glad/src/glad.c)
 
-# ============================================================================
-# Link Libraries
-# ============================================================================
-
-target_link_libraries(${PROJECT_NAME} PRIVATE
-    ${GLFW_LIBRARY}
-    ${PLATFORM_LIBRARIES}
-    soloud
-    ${FREETYPE_LIBRARY}
-)
-
+# Tell the compiler exactly where to look when you type #include "something.h"
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${THIRD_PARTY_DIR}/soloud/include
+    src
+    ${TP_DIR}/glad/include
+    ${TP_DIR}/glm
+    ${GLFW_DIR}/include
+    ${TP_DIR}/stb_image
+    ${TP_DIR}/freetype/include
+)
+
+# Glue the third-party libraries we configured in Section 2 into our final executable
+target_link_libraries(${PROJECT_NAME} PRIVATE 
+    ${GLFW_LIB} 
+    ${PLATFORM_LIBS} 
+    soloud 
+    freetype
 )
 
 # ============================================================================
-# Compiler Options
+# 4. POST-BUILD / QUALITY OF LIFE
 # ============================================================================
-
-if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4)
-    # Disable some warnings
-    target_compile_options(${PROJECT_NAME} PRIVATE /wd4251 /wd4275 /wd4996)
-    # Set Windows subsystem to console for debugging
-    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
-else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-# ============================================================================
-# Copy Resources
-# ============================================================================
-
-# Copy shaders to output directory
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
-        COMMENT "Copying shaders to output directory"
-    )
-endif()
-
-# Copy res to output directory
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/res)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/res
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/res
-        COMMENT "Copying res to output directory"
-    )
-endif()
-
-# Copy GLFW DLL on Windows (if using dynamic library)
-if(WIN32 AND GLFW_DLL)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${GLFW_DLL}
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>
-        COMMENT "Copying GLFW DLL to output directory"
-    )
-endif()
-
-# ============================================================================
-# Custom Targets
-# ============================================================================
-
-# Add a custom target to run the game
-add_custom_target(run
-    COMMAND ${PROJECT_NAME}
-    DEPENDS ${PROJECT_NAME}
-    COMMENT "Running ${PROJECT_NAME}"
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+# After the game compiles, automatically copy our images, shaders, and DLLs into the "bin" folder.
+# If we don't do this, the .exe won't be able to find the files and will crash instantly!
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/res $<TARGET_FILE_DIR:${PROJECT_NAME}>/res
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${GLFW_DIR}/lib-vc2022/glfw3.dll $<TARGET_FILE_DIR:${PROJECT_NAME}>/
 )
-
-# Add a custom target for development
-add_custom_target(dev
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${PROJECT_NAME}
-    COMMAND ${PROJECT_NAME}
-    DEPENDS ${PROJECT_NAME}
-    COMMENT "Building and running ${PROJECT_NAME}"
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-)
-
-# ============================================================================
-# Build Configuration Summary
-# ============================================================================
-
-message(STATUS "")
-message(STATUS "========================================")
-message(STATUS "Snake Game Configuration")
-message(STATUS "========================================")
-message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Platform: ${CMAKE_SYSTEM_NAME}")
-message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "GLFW Include: ${GLFW_INCLUDE_DIR}")
-message(STATUS "GLFW Library: ${GLFW_LIBRARY}")
-message(STATUS "GLM Include: ${GLM_INCLUDE_DIR}")
-message(STATUS "GLAD Include: ${GLAD_INCLUDE_DIR}")
-message(STATUS "FreeType: ${FREETYPE_LIBRARY}")
-message(STATUS "Output Directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-message(STATUS "========================================")
-message(STATUS "")

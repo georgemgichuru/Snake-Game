@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include "glad/glad.h"
+#include "glad/glad.h" // Glad must be included before GLFW
 #include "GLFW/glfw3.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -16,21 +16,23 @@
  */
 class Renderer {
 private:
-    std::shared_ptr<Shader> m_shader;
+    std::shared_ptr<Shader> m_shader; // Shared pointer to our shader program
     
     // OpenGL hardware buffer IDs
-    GLuint m_vao; // Vertex Array Object: Remembers buffer configurations
+    GLuint m_vao; // Vertex Array Object: Remembers our attribute configurations
     GLuint m_vbo; // Vertex Buffer Object: Stores our raw polygon point data on the GPU
-    GLuint m_ebo; // Element Buffer Object: Stores indices that tell the GPU how to connect the points
+    GLuint m_ebo; // Element Buffer Object: Stores indices telling the GPU how to connect points
     
     // Viewport data
     glm::mat4 m_projection; // Matrix converting flat 2D game coords to proper screen pixels
     int m_screenWidth;
     int m_screenHeight;
     
+    std::unique_ptr<TextRenderer> m_textRenderer; // Dedicated class to handle FreeType font rendering
+    
 public:
-    Renderer(int width, int height);
-    ~Renderer();
+    Renderer(int width, int height); // Constructor
+    ~Renderer(); // Destructor to clean up GPU memory
     
     // --------------------------------------------------------
     // SETUP & LIFECYCLE
@@ -55,15 +57,16 @@ public:
     // Renders a colored rectangle at the targeted XY position with the given WidthxHeight sizes
     void drawRect(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color);
 
+    // Renders a 2D texture (sprite)
     void drawSprite(const std::shared_ptr<Texture2D>& texture,
                     const glm::vec2& position,
                     const glm::vec2& size,
-                    const glm::vec4& tint = glm::vec4(1.0f));
+                    const glm::vec4& tint = glm::vec4(1.0f)); // Tint defaults to pure white (no tint)
     
     // Initialise text rendering — call after init(), needs a .ttf path
     bool initText(const std::string& fontPath, unsigned int fontSize = 28);
 
-    // Draws text at pixel position (x, y). Supports centreX flag for easy centering.
+    // Draws text at pixel position (x, y). Supports centreX flag for easy horizontal centering.
     void drawText(const std::string& text, float x, float y,
                   float scale, const glm::vec4& color,
                   bool centreX = false);
@@ -75,8 +78,6 @@ public:
     int getScreenWidth() const { return m_screenWidth; }
     int getScreenHeight() const { return m_screenHeight; }
     
+    // Retrieves the projection matrix
     const glm::mat4& getProjection() const { return m_projection; }
-    
-private:
-    std::unique_ptr<TextRenderer> m_textRenderer;
 };

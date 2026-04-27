@@ -1,35 +1,40 @@
 #pragma once
 
-#include <unordered_map>
-#include <memory>
+#include <unordered_map> // C++ Hash Map for ultra-fast O(1) lookups
+#include <memory>        // For smart pointers (std::shared_ptr)
 #include <string>
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 #include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/type_ptr.hpp> // Allows us to pass GLM math objects directly to OpenGL
 #include "Texture2D.h"
 
 /**
  * Shader Object Class:
- * Represents an active piece of code sitting on the graphics card (GPU). 
- * Shaders are what actually do the math to draw pixels onto the monitor.
- * This class gives us simple C++ functions to plug data neatly into the GPU code.
+ * A lightweight C++ wrapper around an OpenGL Shader Program.
+ * It holds the GPU ID and provides helper functions to send C++ variables
+ * (like matrices, colors, or floats) directly into the GLSL shader code running on the GPU.
  */
 class Shader {
 public:
-    unsigned int ID; // The numeric ID given to the Shader natively by OpenGL
+    unsigned int ID; // The numeric ID OpenGL uses to identify this shader program natively.
     
-    Shader() : ID(0) {}
-    ~Shader() { if (ID) glDeleteProgram(ID); } // Delete off the GPU to save memory
+    // Constructor initializes ID to 0 (which means "no shader" in OpenGL).
+    Shader() : ID(0) {} 
     
-    // Activate this shader. Required before you can begin feeding it variables or drawing.
+    // Destructor securely deletes the program from GPU memory when this C++ object is destroyed.
+    ~Shader() { if (ID) glDeleteProgram(ID); } 
+    
+    // Tells the GPU to actively use this specific shader program for all following draw calls.
     void use() { glUseProgram(ID); }
     
-    // --- UTILITY METHODS ---
-    // The following "set" variables are used to inject data straight from our C++ CPU side
-    // right into our GLSL shader files over on the GPU hardware side.
+    // ------------------------------------------------------------------------
+    // UNIFORM SETTERS: 
+    // These find a variable by 'name' in your .glsl file and update its value.
+    // ------------------------------------------------------------------------
     
     void setBool(const std::string &name, bool value) const {
+        // glGetUniformLocation asks the GPU where the variable is. glUniform1i sets it (booleans are treated as 0 or 1).
         glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
     }
     
@@ -42,6 +47,7 @@ public:
     }
     
     void setVec2(const std::string &name, const glm::vec2 &value) const {
+        // "2fv" means "2 floats, passed via a vector/array pointer".
         glUniform2fv(glGetUniformLocation(ID, name.c_str()), 1, &value[0]);
     }
     
@@ -54,51 +60,50 @@ public:
     }
     
     void setMat4(const std::string &name, const glm::mat4 &mat) const {
-        // We often set "Matrix 4x4s" (mat4) when updating positions to adjust the 2D plane perspective
+        // glm::value_ptr translates the GLM matrix struct into a raw float array that C-based OpenGL can read.
         glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, glm::value_ptr(mat));
     }
 };
 
 /**
- * ResourceManager Class:
- * A global tool responsible for safely loading files from your hard drive into Memory 
- * so that you don't load the same files (like massive textures or shaders) repeatedly.
- * Operates as a Singleton.
+ * ResourceManager Class (Singleton):
+ * Prevents loading the same file from the hard drive multiple times.
+ * If 100 apples spawn, we only load "apple.png" once, and all 100 apples share it.
  */
 class ResourceManager {
 private:
-    static ResourceManager* s_instance;
-    // Map tracking our shaders by a convenient string name, like "basic"
+    static ResourceManager* s_instance; // The single global instance of this manager.
+    
+    // Hash maps acting as our caches. Strings (names) map to Shared Pointers of the resources.
     std::unordered_map<std::string, std::shared_ptr<Shader>> m_shaders;
-    // Map tracking textures
     std::unordered_map<std::string, std::shared_ptr<Texture2D>> m_textures;
     
-    ResourceManager() = default;
-    ~ResourceManager() = default;
+    ResourceManager() = default;  // Private constructor prevents anyone else from calling 'new ResourceManager()'
+    ~ResourceManager() = default; 
     
-    // Internal parser to take text and turn it into GPU-readable shader code
+    // Internal helper functions to compile and link raw GLSL text
     unsigned int compileShader(const char* source, GLenum type);
-    // Mashes the Vertex shader and Fragment shader into one cohesive "Program"
     unsigned int linkProgram(unsigned int vertexShader, unsigned int fragmentShader);
     
 public:
-    // Delete copy constructor & assignment to maintain singleton architecture
+    // Delete copy/assignment operations so our Singleton can absolutely never be duplicated
     ResourceManager(const ResourceManager&) = delete;
     ResourceManager& operator=(const ResourceManager&) = delete;
     
-    static ResourceManager* getInstance();
+    static ResourceManager* getInstance(); // Public access point to get the manager
     
-    // Opens up text files from the hard drive, parses the GLSL text, builds a shader,
-    // and places it securely in our `m_shaders` tracking map for future use.
+    // Compiles a new shader from file paths and saves it into the hash map under 'name'
     std::shared_ptr<Shader> loadShader(const std::string& name, const std::string& vertPath, const std::string& fragPath);
     
-    // Fetches an already-loaded shader by name from cache
+    // Fetches an already loaded shader from the hash map
     std::shared_ptr<Shader> getShader(const std::string& name);
     
-    // General utility just to read any text file outright into a single string
+    // Utility to dump an entire text file into a C++ string
     static std::string readFile(const std::string& path);
 
-    // Textures
+    // Decodes an image file and saves it into the hash map under 'name'
     std::shared_ptr<Texture2D> loadTexture(const std::string& name, const std::string& path);
+    
+    // Fetches an already loaded texture from the hash map
     std::shared_ptr<Texture2D> getTexture(const std::string& name);
 };

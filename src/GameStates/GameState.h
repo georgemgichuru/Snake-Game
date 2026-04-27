@@ -1,17 +1,17 @@
 #pragma once
 
-#include <functional>
+#include <functional> // Allows us to pass functions around as variables using std::function
 #include <glm/glm.hpp>
 #include "Core/Renderer.h"
 #include "Core/InputManager.h"
 #include "Core/ParticleSystem.h"
 #include "GameObjects/Snake.h"
-#include "soloud.h"
-#include "soloud_wav.h"
+#include "soloud.h"     // The core audio engine library
+#include "soloud_wav.h" // The module that loads .wav files
 
-// The four distinct screens the game can be in
+// An enum class defining the four distinct screens/states the game can be in.
 enum class AppState {
-    START,      // "Press ENTER to start" splash
+    START,      // "Press ENTER to start" splash screen
     PLAYING,    // Normal gameplay
     PAUSED,     // Paused overlay
     GAME_OVER   // Death overlay with final score
@@ -25,8 +25,8 @@ enum class AppState {
  */
 class GameState {
 private:
-    Renderer* m_renderer;   // Reference to drawing system
-    InputManager* m_input;  // Reference to hardware tracking system
+    Renderer* m_renderer;   // Reference to the drawing system
+    InputManager* m_input;  // Reference to the hardware input system
     
     // ----------------------------------------------------
     // GAME OBJECTS & DATA
@@ -34,56 +34,54 @@ private:
     Snake m_snake;
     ParticleSystem m_particles;
 
+    glm::vec2 m_foodPosition; // The X,Y grid coordinate of the apple
+    glm::vec4 m_foodColor;    // The RGBA color profile for the apple
     
-    glm::vec2 m_foodPosition; // Where is the food hiding on the grid?
-    glm::vec4 m_foodColor;    // Color profile for the food item
-    
-    // Board logic: How many cells wide/high, and pixel size per cell
+    // Board logic: How many cells wide/high the grid is, and pixel size per cell
     int m_gridWidth;
     int m_gridHeight;
-    float m_cellSize;         // Width/Height logic of a single tile
-    glm::vec2 m_gridOffset;   // Pixel pushing to center the board inside the Window
+    float m_cellSize;         // The width/height of a single tile in pixels
+    glm::vec2 m_gridOffset;   // Pixel offset used to center the board inside the Window
     
     // Tracking flags
-    AppState m_appState = AppState::START;
+    AppState m_appState = AppState::START; // Start the game on the Splash screen
     bool m_isGameOver = false; 
     bool m_isPaused = false;
     int m_score = 0;
     int m_highScore = 0;
     
-    // Optional Callbacks. Essentially functions we can fire back into `main.cpp` 
-    // to do things like printing logs natively out there.
+    // Callbacks: A way for this class to trigger functions in `main.cpp`
     std::function<void()> m_playCallback;
     std::function<void()> m_gameOverCallback;
 
-    SoLoud::Soloud m_soloud;
-    SoLoud::Wav m_eatSound;
-    SoLoud::Wav m_dieSound;
+    // SoLoud audio objects
+    SoLoud::Soloud m_soloud;   // The master audio engine
+    SoLoud::Wav m_eatSound;    // The sound effect for eating an apple
+    SoLoud::Wav m_dieSound;    // The sound effect for crashing
     
     // ----------------------------------------------------
     // INTERNAL HELPERS
     // ----------------------------------------------------
-    void generateFood();
+    void generateFood(); 
     bool checkWallCollision(const glm::vec2& position);
-    bool checkSelfCollision();
     void resetGame();
     
 public:
-    // Takes references to the engine layers so GameState can make demands of them
+    // Constructor requires references to our core engine systems
     GameState(Renderer* renderer, InputManager* input);
     ~GameState() = default;
     
-    // Phase hooks heavily utilized in `main.cpp`.
-    void enter();            // Sets everything to default, resets score, generates initial food.
-    void exit();             // Halts operations, typically called right before reset/shutdown.
+    // Phase hooks heavily utilized in the main game loop
+    void enter();            // Bootstraps audio, fonts, and resets score upon launch.
+    void exit();             // Safely shuts down external libraries (like SoLoud).
     void update(float dt);   // The beating heart of the game: checking timers, movement, deaths.
-    void render();           // Visual instruction block passed rapidly down to OpenGL.
+    void render();           // Visual instruction block passed down to OpenGL.
     
-    // Registration commands to link Lambda code snippets from inside `main.cpp`
+    // Registration commands to link code snippets from outside this class
     void setPlayCallback(std::function<void()> callback) { m_playCallback = callback; }
     void setGameOverCallback(std::function<void()> callback) { m_gameOverCallback = callback; }
     
-    // Status checking
+    // Public Status checking
     bool isGameOver() const { return m_isGameOver; }
     int getScore() const { return m_score; }
 };

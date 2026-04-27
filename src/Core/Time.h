@@ -1,50 +1,44 @@
 #pragma once
 
-#include <chrono>
+#include <chrono> // Standard C++ library for tracking high-precision time
 
 /**
- * Time Class:
- * Regulates the speed at which your game runs. Without it, a powerful computer
- * would run Snake so fast you'd die in 0.001 seconds.
- * Calculates `dt` (Delta Time), ensuring motion looks consistent on all monitors.
+ * Time Class (Singleton):
+ * Manages the game's internal stopwatch. Its primary job is to calculate 'Delta Time' (dt).
+ * Delta Time ensures that animations and movements happen at the same real-world speed 
+ * regardless of whether the player's computer is fast or slow.
  */
 class Time {
 private:
-    static Time* s_instance; // Singleton Architecture
+    static Time* s_instance; // The single global instance
     
-    // deltaTime = "how many fractions of a second did the previous frame take?"
-    // If you tell an object to move X pixels * deltaTime, it guarantees smooth real-world speed
-    float m_deltaTime;
-    
-    // Fixed steps typically used if throwing physics calculations (like gravity) in
-    float m_fixedDeltaTime;
-    
-    // Track total seconds alive since program start
-    float m_time;
-    
-    // The timestamp recording the EXACT millisecond the last frame ticked
+    float m_deltaTime;      // Time elapsed since the last frame (in fractions of a second)
+    float m_fixedDeltaTime; // A constant time step usually used for physics updates
+    float m_time;           // Total time elapsed since the game started
+
+    // A high-precision timestamp of exactly when the previous frame occurred
     std::chrono::high_resolution_clock::time_point m_lastFrame;
     
-    Time();
+    Time(); // Private constructor enforces the Singleton pattern
     ~Time() = default;
     
 public:
-    // Prevent duplicated copying of this Singleton globally
+    // Delete copy/assignment to strictly prevent duplicating the clock
     Time(const Time&) = delete;
     Time& operator=(const Time&) = delete;
     
     static Time* getInstance();
     
-    // Prepares the internal stopwatch initially
+    // Initializes the clock (called once at the exact start of the game)
     void init();
     
-    // Calculates elapsed span and overwrites our last known timestamp (Call once per game loop!)
+    // Calculates Delta Time and updates the clock (called exactly once per game frame)
     void update();
     
-    // Expose the calculated floating points for easy math in GameState.cpp
+    // --- GETTERS ---
+    // These allow other files to simply write `Time::getInstance()->deltaTime()`
+    
     float deltaTime() const { return m_deltaTime; }
-    
     float fixedDeltaTime() const { return m_fixedDeltaTime; }
-    
     float time() const { return m_time; }
 };

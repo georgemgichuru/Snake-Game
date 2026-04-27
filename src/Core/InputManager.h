@@ -1,6 +1,6 @@
-#pragma once
+#pragma once // Tells the C++ compiler to only include this header file once per compilation unit to avoid duplicate definitions.
 
-#include "GLFW/glfw3.h"
+#include "GLFW/glfw3.h" // Includes the GLFW library which handles our window creation and keyboard/mouse input.
 
 /**
  * InputManager Class:
@@ -8,41 +8,31 @@
  * It's structured as a "Singleton", meaning there's mathematically only ever
  * ONE InputManager existing in memory anywhere.
  */
-class InputManager {
-private:
-    // Only instance available system-wide
-    static InputManager* s_instance;
-    GLFWwindow* m_window;
+class InputManager { // Begins the declaration of the InputManager class.
+private: // Starts the private section. Everything below this can only be accessed from inside this specific class.
+    static InputManager* s_instance; // A static pointer that will hold the one, universally shared instance of this class.
+    GLFWwindow* m_window; // A pointer to the specific GLFW window we are capturing input from.
     
     // An array keeping track of all keyboard keys states from the PREVIOUS game frame
     // This allows us to see if a key was "just pressed" instead of "held down"
-    bool m_previousKeys[GLFW_KEY_LAST + 1];
+    bool m_previousKeys[GLFW_KEY_LAST + 1]; // An array of booleans sized to hold every possible GLFW key code.
     
-    // Private constructor (prevents making a second InputManager via `new`)
-    InputManager();
-    ~InputManager() = default;
+    InputManager(); // The constructor is private! This stops other code from creating a new InputManager using the 'new' keyword.
+    ~InputManager() = default; // The destructor is set to the compiler-generated default since we don't have complex manual cleanup here.
     
-public:
-    // Delete copy constructor so nobody copies our unique singleton reference
-    InputManager(const InputManager&) = delete;
-    InputManager& operator=(const InputManager&) = delete;
+public: // Starts the public section. Everything below this can be used by the rest of your game code.
+    InputManager(const InputManager&) = delete; // "Deletes" the copy constructor. This makes it impossible to accidentally copy our Singleton.
+    InputManager& operator=(const InputManager&) = delete; // "Deletes" the assignment operator. Also prevents copying via assignment (e.g., inputA = inputB).
     
-    // Retrieves the one universal instance of this InputManager
-    static InputManager* getInstance();
+    static InputManager* getInstance(); // A public, static function that other files call to get access to the one instance of this class.
     
-    // Tell the InputManager which window we are capturing keys from
-    void init(GLFWwindow* window);
+    void init(GLFWwindow* window); // A function we will call once at startup to tell the manager which window to listen to.
     
-    // Takes a screenshot of current hardware state BEFORE OS polling to use for comparison
-    void update();
+    void update(); // A function we will call once every game frame to record the key states.
     
-    // Returns `true` if a key is being held down consistently
-    bool isKeyPressed(int key) const;
+    bool isKeyPressed(int key) const; // Returns true if a key is currently held down. 'const' guarantees this function won't modify class variables.
     
-    // Returns `true` only for the first frame a key was physically mashed down.
-    // Incredibly important for UI and Snake movement so we don't rapid-fire move.
-    bool isKeyJustPressed(int key) const;
+    bool isKeyJustPressed(int key) const; // Returns true ONLY on the exact frame the key is pushed down.
     
-    // Returns `true` exactly on the frame the player let go of the button
-    bool isKeyJustReleased(int key) const;
-};
+    bool isKeyJustReleased(int key) const; // Returns true ONLY on the exact frame the key is let go.
+}; // Ends the class declaration.

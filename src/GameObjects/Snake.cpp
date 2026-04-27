@@ -1,62 +1,63 @@
 #include "GameObjects/Snake.h"
-#include <algorithm>
+#include <algorithm> // Included for general standard library algorithms (though not strictly used in this snippet)
 
 Snake::Snake() 
-    : m_direction(Direction::RIGHT)
-    , m_growPending(false) {
-    // Initial state constructor
+    : m_direction(Direction::RIGHT) // Default starting direction is to the right
+    , m_growPending(false) {        // We don't start the game needing to grow
 }
 
 void Snake::init(const Position& startPos, int initialLength) {
-    // Clear out any old segments from previous runs
+    // Clear out any old segments and inputs from previous rounds (so restarting the game works properly)
     m_segments.clear();
     m_directionQueue.clear();
     
-    // Reset starting directions
+    // Reset starting states
     m_direction = Direction::RIGHT;
     m_growPending = false;
     
-    // Create snake body segments stretching to the left
+    // Create the initial snake body.
+    // Since it's moving RIGHT, the head is at startPos, and the body stretches out to the LEFT (startPos.x - i).
     for (int i = 0; i < initialLength; ++i) {
         m_segments.push_back(Position(startPos.x - i, startPos.y));
     }
 }
 
 void Snake::setDirection(Direction dir) {
-    // Evaluate the last input direction queued, or the current direction if queue is empty
+    // Look at what the last queued direction was. If the queue is empty, just look at the physical current direction.
     Direction lastDir = m_directionQueue.empty() ? m_direction : m_directionQueue.back();
 
-    // Prevent 180-degree turns (cannot instantly reverse into itself)
+    // Prevent impossible 180-degree turns. If we are going UP, we cannot instantly go DOWN.
     if ((lastDir == Direction::UP && dir == Direction::DOWN) ||
         (lastDir == Direction::DOWN && dir == Direction::UP) ||
         (lastDir == Direction::LEFT && dir == Direction::RIGHT) ||
         (lastDir == Direction::RIGHT && dir == Direction::LEFT)) {
-        return; // Ignore invalid input
+        return; // It's an illegal move, so exit the function and ignore the input entirely.
     }
     
-    // Queue up the direction change for the next movement ticks, capped to prevent infinite queue buildup
+    // If the move is valid, add it to our input buffer.
+    // We cap it at 3 so a player can't mash 50 keys while paused and watch the snake do a crazy dance later.
     if (m_directionQueue.size() < 3) {
         m_directionQueue.push_back(dir);
     }
 }
 
 void Snake::move() {
-    // Commit the queued direction
+    // 1. Check if the player queued up a turn. If so, grab the oldest one and make it our current direction.
     if (!m_directionQueue.empty()) {
         m_direction = m_directionQueue.front();
-        m_directionQueue.pop_front();
+        m_directionQueue.pop_front(); // Remove it from the queue now that we've committed to it.
     }
     
-    // Calculate new head position based on current head
+    // 2. Look at the current head position
     Position newHead = m_segments.front();
     
-    // Advance head one unit in the current direction
+    // 3. Shift the 'newHead' coordinate 1 unit in whichever direction we are facing
     switch (m_direction) {
         case Direction::UP:
-            newHead.y -= 1;
+            newHead.y -= 1; // Y goes UP as the number gets smaller (Top-Left Origin math!)
             break;
         case Direction::DOWN:
-            newHead.y += 1;
+            newHead.y += 1; // Y goes DOWN as the number gets bigger
             break;
         case Direction::LEFT:
             newHead.x -= 1;
@@ -66,43 +67,46 @@ void Snake::move() {
             break;
     }
     
-    // Add new head to the front of the body
+    // 4. Attach the calculated new head to the very front of the snake's body
     m_segments.push_front(newHead);
     
-    // If we're not growing this turn, remove the tail bit
-    // This gives the illusion of movement
+    // 5. Handle the tail
     if (!m_growPending) {
-        m_segments.pop_back();
+        // We didn't eat an apple, so delete the last tail segment.
+        // Because we added a head and removed a tail, the snake looks like it physically slithered forward 1 space!
+        m_segments.pop_back(); 
     } else {
-        // Snake grew, reset the flag so we don't grow forever
-        m_growPending = false;
+        // We DID eat an apple! We keep the tail where it is.
+        // Because we added a new head but kept the old tail, the snake is exactly 1 block longer.
+        m_growPending = false; // Reset the flag so we don't grow infinitely forever
     }
 }
 
 void Snake::grow() {
-    // Signal the snake to not pop the tail on the next move
+    // All this does is flip the flag. The actual math happens in the next move() cycle!
     m_growPending = true;
 }
 
 bool Snake::checkCollision(const Position& pos) const {
-    // Check if the given position perfectly overlaps with ANY snake segment
+    // Loop through every single coordinate inside our snake's body
     for (const auto& segment : m_segments) {
+        // If the X and Y coordinates perfectly match the position we are asking about...
         if (segment.x == pos.x && segment.y == pos.y) {
-            return true;
+            return true; // We found a collision!
         }
     }
-    return false;
+    return false; // The space is clear
 }
 
 bool Snake::checkSelfCollision() const {
-    // The head is always index 0
+    // The head is always safely sitting at index 0 of our deque
     const Position& head = m_segments.front();
     
-    // Check if head collides with any trailing body segment (skip index 0)
+    // Loop through the rest of the body, starting at index 1 (we don't want the head to check if it's colliding with itself!)
     for (size_t i = 1; i < m_segments.size(); ++i) {
         if (m_segments[i].x == head.x && m_segments[i].y == head.y) {
-            return true;
+            return true; // The head mathematically overlapped with a body segment. Game Over!
         }
     }
-    return false;
+    return false; // The snake is safe
 }

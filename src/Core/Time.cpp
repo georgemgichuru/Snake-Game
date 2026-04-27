@@ -4,8 +4,9 @@ Time* Time::s_instance = nullptr;
 
 Time::Time() 
     : m_deltaTime(0.0f)
-    , m_fixedDeltaTime(0.016f)  // Target ~60 FPS logic ticks roughly.
-    , m_time(0.0f) {
+    , m_fixedDeltaTime(0.016666f) // Exactly 1/60th of a second (Targeting 60 physics updates per sec)
+    , m_time(0.0f) 
+{
 }
 
 Time* Time::getInstance() {
@@ -16,27 +17,32 @@ Time* Time::getInstance() {
 }
 
 void Time::init() {
-    // Read the OS CPU system clock and stamp it for right now essentially.
+    // Record the exact current time to serve as the baseline for the very first frame
     m_lastFrame = std::chrono::high_resolution_clock::now();
 }
 
 void Time::update() {
-    // 1) Read the current clock right now at this very slice of a second.
+    // 1) Check the PC's hardware clock right now
     auto currentTime = std::chrono::high_resolution_clock::now();
     
-    // 2) Mathematically deduce the gap between `currentTime` and `m_lastFrame`
+    // 2) Calculate the mathematical difference between now and the last frame
     std::chrono::duration<float> elapsed = currentTime - m_lastFrame;
-    m_deltaTime = elapsed.count();
     
-    // 3) Push `currentTime` into the `m_lastFrame` variable so we are ready for the NEXT loop measuring
+    // Extract the duration as a standard floating-point number (in seconds)
+    m_deltaTime = elapsed.count(); 
+    
+    // 3) Update the last frame marker so it is ready to be measured against in the NEXT loop
     m_lastFrame = currentTime;
     
-    // Safety cap: If you alt-tab the game or lag aggressively, `m_deltaTime` could spike huge (like 5.0 seconds).
-    // This cap stops objects clipping straight through walls or exploding mathematically if the game stutters.
+    // DELTA TIME CAP (Spike Prevention):
+    // If you grab the window to move it, or the PC lags heavily, a frame might take 1.0 full seconds.
+    // If we multiply our snake's speed by 1.0s, it might instantly teleport straight through a wall!
+    // By capping dt at 0.033f (equivalent to dropping to 30 FPS), we ensure physics mathematically 
+    // never break, even if the game visually stutters for a moment.
     if (m_deltaTime > 0.033f) {
         m_deltaTime = 0.033f;
     }
     
-    // Continually add up the fractions to form whole seconds since application launch
+    // Keep a running total of how long the game has been open in seconds
     m_time += m_deltaTime;
 }
